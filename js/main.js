@@ -2,7 +2,7 @@
 (function () {
   const U = G.U;
   G.game = { mode: 'menu', panel: null, searching: null, bigMap: false };
-  const input = G.input = { keys: {}, pressed: {}, mouse: { x: 0, y: 0, down: false, clicked: false }, wheel: 0 };
+  const input = G.input = { keys: {}, pressed: {}, mouse: { x: 0, y: 0, down: false, clicked: false, rdown: false, rclicked: false }, wheel: 0 };
 
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Tab') e.preventDefault();
@@ -13,15 +13,15 @@
     const p = G.game.panel;
     if (e.code === 'Escape') { if (p === 'loot' || p === 'inv' || p === 'pause') G.UI.closePanel(); else if (!p) G.UI.pause(); }
     if (e.code === 'Tab') { if (p === 'inv') G.UI.closePanel(); else if (!p) G.UI.openInv(); }
-    if (e.code === 'KeyE' && p === 'loot' && !e.repeat) { G.UI.closePanel(); input.keys.KeyE = false; G.game.eLock = true; }
+    if (p === 'loot' && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) G.UI.closePanel(); // 一走动就关掉搜刮面板
     if (e.code === 'KeyM' && !p) G.game.bigMap = !G.game.bigMap;
   });
-  window.addEventListener('keyup', (e) => { input.keys[e.code] = false; if (e.code === 'KeyE') G.game.eLock = false; });
+  window.addEventListener('keyup', (e) => { input.keys[e.code] = false; });
   window.addEventListener('blur', () => { input.keys = {}; input.mouse.down = false; });
   const cv = document.getElementById('game');
   cv.addEventListener('mousemove', (e) => { input.mouse.x = e.clientX; input.mouse.y = e.clientY; });
-  cv.addEventListener('mousedown', (e) => { if (e.button === 0) { input.mouse.down = true; input.mouse.clicked = true; } });
-  window.addEventListener('mouseup', (e) => { if (e.button === 0) input.mouse.down = false; });
+  cv.addEventListener('mousedown', (e) => { if (e.button === 0) { input.mouse.down = true; input.mouse.clicked = true; } if (e.button === 2) { input.mouse.rdown = true; input.mouse.rclicked = true; } });
+  window.addEventListener('mouseup', (e) => { if (e.button === 0) input.mouse.down = false; if (e.button === 2) input.mouse.rdown = false; });
   cv.addEventListener('wheel', (e) => { input.wheel = e.deltaY > 0 ? 1 : -1; e.preventDefault(); }, { passive: false });
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -35,20 +35,22 @@
     G.UI.toast(opt.deploy.name, 1800);
   };
 
+  // 自动搜刮：走到门口/箱子/车旁边停下来，自动开始搜；搜完自动把东西装进背包
   function handleSearch(raid, dt) {
     const P = raid.player;
     const g = G.game;
     if (g.panel) { g.searching = null; return; }
-    const holding = input.keys['KeyE'] && !g.eLock;
-    if (!holding) { g.searching = null; return; }
     const it = raid.findInteract();
+    if (g.lastLoot && (!it || it !== g.lastLoot) && (!g.lastLoot.x || U.dist(P.x, P.y, g.lastLoot.x, g.lastLoot.y) > 2.5)) g.lastLoot = null;
     if (!it) { g.searching = null; return; }
-    if (it.type === 'npc') { raid.rescueNpc(); g.eLock = true; return; }
+    if (it.type === 'npc') { raid.rescueNpc(); return; }
+    if (it === g.lastLoot) { g.searching = null; return; } // 刚搜过的，不反复弹出
+    if (it.searched && !(it.items && it.items.length)) { g.searching = null; return; }
     if (!g.searching || g.searching.c !== it) g.searching = { c: it, t: 0, need: raid.searchTime(it) };
-    if (P.moving || P.rollT > 0) { g.searching.t = 0; return; }
+    if (P.moving || P.rollT > 0 || input.mouse.down) { g.searching.t = Math.max(0, g.searching.t - dt * 2); return; }
     g.searching.t += dt;
     if (Math.random() < dt * 0.5 && !it.searched) raid.noise(P.x, P.y, 2.5 * P.noiseMul());
-    if (g.searching.t >= g.searching.need) { const c = g.searching.c; g.searching = null; g.eLock = true; raid.completeSearch(c); }
+    if (g.searching.t >= g.searching.need) { const c = g.searching.c; g.searching = null; g.lastLoot = c; raid.completeSearch(c); }
   }
 
   let last = performance.now(), hudT = 0, t = 0;
@@ -63,7 +65,7 @@
       if (p === 'perk' || p === 'pause' || p === 'end' || G.game.bigMap) scale = 0;
       if (raid.ended) scale = 0.3;
       if (scale > 0) {
-        const pin = p ? { keys: {}, pressed: {}, mouse: { x: input.mouse.x, y: input.mouse.y, down: false, clicked: false }, wheel: 0 } : input;
+        const pin = p ? { keys: {}, pressed: {}, mouse: { x: input.mouse.x, y: input.mouse.y, down: false, clicked: false, rclicked: false }, wheel: 0 } : input;
         raid.update(dt * scale, pin);
         if (!p) handleSearch(raid, dt * scale);
       }
@@ -79,7 +81,7 @@
     } else {
       drawMenuBg(t);
     }
-    input.pressed = {}; input.mouse.clicked = false; input.wheel = 0;
+    input.pressed = {}; input.mouse.clicked = false; input.mouse.rclicked = false; input.wheel = 0;
     requestAnimationFrame(frame);
   }
 
@@ -98,6 +100,7 @@
   function drawStatic(r) {
     const R = G.R, c = R.ctx, M = G.M, TS = U.TS, CH = M.CH;
     const W = R.W, H = R.H;
+    R.zoomOn();
     c.fillStyle = '#e6dabd'; c.fillRect(0, 0, W, H);
     const vx0 = R.cam.x - W / 2 / TS, vy0 = R.cam.y - H / 2 / TS;
     const cx0 = Math.floor(vx0 / CH), cy0 = Math.floor(vy0 / CH), cx1 = Math.floor((vx0 + W / TS) / CH), cy1 = Math.floor((vy0 + H / TS + 4) / CH);
@@ -105,6 +108,7 @@
     for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) if (cx >= 0 && cy >= 0 && cx * CH < M.w && cy * CH < M.h) c.drawImage(M.getBuild(cx, cy, false), Math.round(R.sx(cx * CH)), Math.round(R.sy(cy * CH)) - M.BTOP);
     c.save(); c.globalCompositeOperation = 'multiply'; c.fillStyle = R.paperPat; c.fillRect(0, 0, W, H); c.restore();
     c.fillStyle = 'rgba(20,15,10,0.35)'; c.fillRect(0, 0, W, H);
+    R.zoomOff();
   }
 
   window.addEventListener('load', () => {
