@@ -246,7 +246,12 @@
   UI.bind_go = (st) => bind('[data-go]', (el) => { const o = G.game.raidOpts[+el.dataset.go]; G.startRaid(o); });
 
   // ---------- 局内 HUD ----------
-  UI.enterRaid = () => { UI.hide(); $('hud').classList.remove('hidden'); $('hud-log').innerHTML = ''; };
+  UI.enterRaid = () => {
+    UI.hide(); $('hud').classList.remove('hidden'); $('hud-log').innerHTML = '';
+    $('hb-inv').onclick = () => { if (G.game.panel === 'inv') UI.closePanel(); else if (!G.game.panel) UI.openInv(); };
+    $('hb-map').onclick = $('minimap').onclick = () => { if (!G.game.panel) G.game.bigMap = !G.game.bigMap; };
+    $('hb-pause').onclick = () => { if (!G.game.panel) UI.pause(); };
+  };
   UI.updateHud = (raid) => {
     const P = raid.player;
     const left = raid.timeLimit - raid.time;
@@ -269,8 +274,7 @@
     else $('w-ammo').innerHTML = '<small>近战</small>';
     const sl = (k, n) => P.equip[k] || k === 'melee' ? `${P.slot === k ? '<b>' : ''}${n}.${P.equip[k] ? D.items[P.equip[k].id].name : '拳头'}${P.slot === k ? '</b>' : ''}` : '';
     $('w-slots').innerHTML = [sl('primary', 1), sl('secondary', 2), sl('melee', 3)].filter(Boolean).join(' · ');
-    const th = P.curThrow();
-    $('w-throw').textContent = th ? `G 投掷：${D.items[th].name}×${P.countItem(th)}（T 切换）` : '无投掷物';
+    $('w-throw').textContent = (P.useT > 0 ? '正在使用 ' + D.items[P.useItem].name + '…（自动）' : '');
     $('b-xp').style.width = (raid.xpProgress() * 100) + '%'; $('t-lv').textContent = `本局等级 ${raid.level} · 经验 ${raid.xp} · 击杀 ${raid.kills}`;
     $('hud-extract').innerHTML = '<b>撤离点</b>' + raid.extracts.filter(e => e.open || e.pending).map(e => `<div class="${e.open ? 'open' : 'closed'}">${e.name} ${Math.round(U.dist(P.x, P.y, e.x, e.y) * 4)}m${e.pending ? ' (' + U.fmtTime(e.opensAt - raid.time) + '后开)' : ''}</div>`).join('');
     // 交互提示
@@ -281,13 +285,11 @@
       pg.classList.remove('hidden'); $('prog-fill').style.width = (raid.extractHold / raid.extractNeed * 100) + '%'; $('prog-text').textContent = U.fmtTime(raid.extractNeed - raid.extractHold);
     } else if (G.game.searching) {
       const s = G.game.searching;
-      pr.textContent = '搜索中：' + raid.containerName(s.c) + '（按住 E）';
+      pr.textContent = '搜索中：' + raid.containerName(s.c) + '（站着别动）';
       pg.classList.remove('hidden'); $('prog-fill').style.width = (s.t / s.need * 100) + '%'; $('prog-text').textContent = '';
     } else {
       pg.classList.add('hidden');
-      if (it && it.type === 'npc') pr.textContent = '[E] 救援幸存者';
-      else if (it) pr.textContent = `[E] ${it.searched ? '查看' : '搜索'}：${raid.containerName(it)}`;
-      else pr.textContent = '';
+      pr.textContent = '';
     }
   };
 
@@ -306,16 +308,23 @@
 
   // ---------- 搜刮面板 ----------
   UI.openLoot = (c) => {
-    G.game.panel = 'loot'; G.game.lootC = c;
-    UI.renderLoot();
+    const raid = G.raid, P = raid.player;
+    G.game.lootC = c;
+    const items = c.items || [];
+    const got = [];
+    for (let i = items.length - 1; i >= 0; i--) { const n0 = items[i].n, id = items[i].id; const r = UI.takeLoot(i, true); if (r !== false) got.push(D.items[id].name); }
+    got.reverse().forEach((n, k) => setTimeout(() => raid.float(P.x, P.y - k * 0.5, '+ ' + n, '#f3e3a0'), k * 180));
+    if (!got.length && !items.length) raid.float(P.x, P.y, '空的', '#ccc');
+    if (items.length) { G.game.panel = 'loot'; UI.toast('背包满了，挑一挑'); UI.renderLoot(); }
+    else G.game.lootC = null;
   };
   UI.renderLoot = () => {
     const raid = G.raid, P = raid.player, c = G.game.lootC;
     const items = c.items || [];
-    UI.show(`<div class="paper"><span class="btn small close-x" id="b-close">关闭 (E/Esc)</span><h2>${esc(raid.containerName(c))}</h2>
+    UI.show(`<div class="paper"><span class="btn small close-x" id="b-close">关闭（走动即关）</span><h2>${esc(raid.containerName(c))}</h2>
       <div class="cols"><div><h3>找到的东西</h3><div class="grid">${items.map((it, i) => UI.itemHTML(it, 'take:' + i)).join('') || '<span class="sub">什么都没有了。</span>'}</div>
       ${items.length ? '<span class="btn" id="b-all">全部拿走</span>' : ''}</div>
-      <div><h3>背包 ${P.pack.length}/${P.capacity()}</h3><div class="grid">${P.pack.map((it, i) => UI.itemHTML(it, 'put:' + i)).join('') || '<span class="sub">空</span>'}</div><p class="sub">点击左侧拿取（空槽位的武器/防具会直接装备）；点击背包物品放回。时间仍在流逝，注意身后。</p></div></div></div>`);
+      <div><h3>背包 ${P.pack.length}/${P.capacity()}</h3><div class="grid">${P.pack.map((it, i) => UI.itemHTML(it, 'put:' + i)).join('') || '<span class="sub">空</span>'}</div><p class="sub">背包满了：点击右侧背包里不要的东西放下，再点左侧拿取。按 WASD 走开即可关闭。</p></div></div></div>`);
     $('b-close').onclick = UI.closePanel;
     const all = $('b-all'); if (all) all.onclick = () => { for (let i = items.length - 1; i >= 0; i--) UI.takeLoot(i, true); UI.renderLoot(); };
     bind('[data-act]', (el) => {
@@ -329,7 +338,7 @@
     const it = c.items[i], d = D.items[it.id];
     if (d.slot && !P.equip[d.slot]) { P.equip[d.slot] = it; c.items.splice(i, 1); raid.log('装备了 ' + d.name); return; }
     const left = P.addItem(it);
-    if (left === 0) c.items.splice(i, 1); else { it.n = left; if (!quiet) UI.toast('背包满了'); }
+    if (left === 0) c.items.splice(i, 1); else { const took = left < it.n; it.n = left; if (!quiet) UI.toast('背包满了'); return took ? true : false; }
   };
   UI.closePanel = () => { G.game.panel = null; G.game.lootC = null; UI.hide(); };
 
@@ -369,8 +378,9 @@
   UI.pause = () => {
     G.game.panel = 'pause';
     UI.show(`<div class="paper story" style="text-align:center"><h2>暂停</h2>
-      <p class="sub">WASD 移动 · 鼠标瞄准射击 · R 换弹 · E 搜索/交互(按住) · 1/2/3 或滚轮切换武器 · G 投掷 T 切换投掷物 · 空格翻滚 · Shift 冲刺 · F 踢击 · Q 专注 · H 快速治疗 · Tab 背包 · M 全图</p>
-      <p class="sub">技巧：枪声会把整条街的丧尸引来；鞭炮能把尸群引开；巨尸冲锋撞墙会眩晕；触手者出手前会有红色虚线预警，翻滚躲开。</p>
+      <p><b>WASD</b> 走位 · <b>鼠标左键</b> 攻击（按住连砍） · <b>鼠标右键</b> 翻滚闪避 · <b>滚轮</b> 换武器</p>
+      <p class="sub">走到门口、汽车、快递柜旁停下就会自动搜刮；换弹、止血、吃药、吃饭都会在安全时自动进行。</p>
+      <p class="sub">技巧：别站桩，绕着丧尸走位砍；枪声会把整条街的丧尸引来；巨尸冲锋撞墙会眩晕；触手者出手前有红色虚线预警，右键翻滚躲开。</p>
       <span class="btn big" id="b-res">继续</span><br><span class="btn red" id="b-quit">放弃本局（视为倒下）</span></div>`);
     $('b-res').onclick = UI.closePanel;
     $('b-quit').onclick = () => { UI.closePanel(); G.raid.deathCause = '放弃了'; G.raid.end('dead'); };
