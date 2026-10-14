@@ -24,7 +24,7 @@
       this.kickCd = 0; this.focusT = 0; this.focusCd = 0;
       this.useT = 0; this.useItem = null; this.useDur = 1;
       this.hitT = 0; this.slowT = 0; this.painT = 0; this.exhausted = false;
-      this.throwIdx = 0; this.stepNoise = 0; this.iframe = 0; this.pullVX = 0; this.pullVY = 0;
+      this.throwIdx = 0; this.stepNoise = 0; this.idleFire = 0; this.autoT = 1; this.trail = []; this.postRoll = 0; this.lungeT = 0; this.lungeDx = 0; this.lungeDy = 0; this.iframe = 0; this.pullVX = 0; this.pullVY = 0;
     }
     perk(id) { return this.raid.perks.has(id); }
     curWeapon() { return this.equip[this.slot] || (this.slot === 'melee' ? { id: 'fist', n: 1 } : null); }
@@ -63,7 +63,7 @@
       return Math.min(0.6, a);
     }
     speedMul() {
-      let s = 1 + this.sk('agile') * 0.03;
+      let s = 1 + this.sk('agile') * 0.03 + (this.perk('p_sprint') ? 0.08 : 0);
       if (this.perk('p_adren') && this.hp < this.maxhp * 0.3) s *= 1.2;
       if (this.slowT > 0) s *= 0.55;
       if (this.useT > 0) s *= 0.5;
@@ -89,6 +89,7 @@
       // 计时
       for (const k of ['fireCd', 'rollCd', 'kickCd', 'focusCd', 'hitT', 'slowT', 'painT', 'iframe', 'focusT']) if (this[k] > 0) this[k] = Math.max(0, this[k] - dt);
       this.bloom = Math.max(0, this.bloom - dt * 0.35);
+      if (this.lastSwing) { this.lastSwing.t -= dt; if (this.lastSwing.t <= 0) this.lastSwing = null; }
       // 移动
       let ix = 0, iy = 0;
       if (inp.keys['KeyW'] || inp.keys['ArrowUp']) iy -= 1;
@@ -97,10 +98,11 @@
       if (inp.keys['KeyD'] || inp.keys['ArrowRight']) ix += 1;
       const il = Math.hypot(ix, iy); if (il) { ix /= il; iy /= il; }
       this.moving = il > 0;
-      const wantSprint = inp.keys['ShiftLeft'] || inp.keys['ShiftRight'];
       if (this.stamina <= 0) this.exhausted = true; if (this.stamina > 25) this.exhausted = false;
-      this.sprinting = wantSprint && this.moving && !this.exhausted && this.useT <= 0 && this.reloadT <= 0;
-      let spd = 3.3 * this.speedMul() * (this.sprinting ? 1.55 : 1);
+      this.sprinting = false; // 简化操作：取消冲刺键，基础移速提高
+      let spd = 3.9 * this.speedMul();
+      if (this.postRoll > 0) this.postRoll -= dt;
+      if (this.lungeT > 0) { this.lungeT -= dt; G.M.moveCircle(this, this.lungeDx * dt, this.lungeDy * dt); }
       if (this.rollT > 0) {
         this.rollT -= dt;
         G.M.moveCircle(this, this.rollDx * 7.5 * dt, this.rollDy * 7.5 * dt);
@@ -142,20 +144,34 @@
       }
       if (this.swingT > 0) this.swingT -= dt;
       // 输入动作
-      if (inp.pressed['KeyR']) this.startReload();
+      // —— 简化操作：WASD 走位，鼠标左键攻击，右键（或空格）翻滚，滚轮换武器；换弹/吃药/吃饭全自动 ——
       if (inp.pressed['Digit1'] && this.equip.primary) this.switchSlot('primary');
       if (inp.pressed['Digit2'] && this.equip.secondary) this.switchSlot('secondary');
       if (inp.pressed['Digit3']) this.switchSlot('melee');
       if (inp.wheel) { const order = ['primary', 'secondary', 'melee'].filter(s => s === 'melee' || this.equip[s]); const i = order.indexOf(this.slot); this.switchSlot(order[(i + (inp.wheel > 0 ? 1 : order.length - 1)) % order.length]); }
-      if (inp.pressed['Space']) this.roll(ix, iy);
-      if (inp.pressed['KeyF']) this.kick();
-      if (inp.pressed['KeyQ']) this.focus();
-      if (inp.pressed['KeyH']) this.quickHeal();
-      if (inp.pressed['KeyG']) this.throwItem(mx, my);
-      if (inp.pressed['KeyT']) this.cycleThrow();
-      if (inp.mouse.down && this.rollT <= 0 && this.useT <= 0) this.attack(inp.mouse.clicked);
-      else if (d && d.chainsaw) this.sawIdle(dt);
+      if (inp.pressed['Space'] || inp.mouse.rclicked) this.roll(ix, iy);
+      if (inp.mouse.down && this.rollT <= 0) { if (this.useT > 0) { this.useT = 0; this.useItem = null; } this.attack(true); this.idleFire = 0; }
+      else { this.idleFire += dt; if (d && d.chainsaw) this.sawIdle(dt); }
+      this.autoCare(dt);
       if (d && d.chainsaw && inp.mouse.down) this.sawTickUpdate(dt);
+    }
+    // 自动照顾自己：空闲时自动换弹、止血、吃药、吃东西
+    autoCare(dt) {
+      this.autoT -= dt;
+      const w = this.curWeapon(), d = w && D.items[w.id];
+      if (d && d.type === 'gun' && this.reloadT <= 0 && w.mag < this.magSize(d) && this.idleFire > 1.0 && this.countItem(d.ammo) > 0) this.startReload();
+      if (this.autoT > 0 || this.useT > 0 || this.rollT > 0) return;
+      this.autoT = 0.8;
+      const danger = this.raid.enemiesNear(this.x, this.y, 6).some(e => e.state === 'chase' || U.dist(this.x, this.y, e.x, e.y) < 3.5);
+      if (danger) return;
+      const has = (f) => this.pack.find(it => f(D.items[it.id]));
+      let pick = null;
+      if (this.infect > 40) pick = has(x => x.infect);
+      if (!pick && this.bleed) pick = this.pack.find(it => it.id === 'bandage') || has(x => x.stopBleed);
+      if (!pick && this.hp < this.maxhp * 0.6) pick = this.pack.filter(it => D.items[it.id].heal && D.items[it.id].type === 'med').sort((a, b) => D.items[a.id].heal - D.items[b.id].heal).find(it => D.items[it.id].heal >= (this.maxhp - this.hp) * 0.5) || has(x => x.type === 'med' && x.heal);
+      if (!pick && this.hunger < 35) pick = has(x => x.type === 'food' && x.food >= 8);
+      if (!pick && this.stamina < this.maxst * 0.2 && this.hunger < 90) pick = this.pack.find(it => it.id === 'redbull');
+      if (pick) this.startUse(pick);
     }
     switchSlot(s) {
       if (this.slot === s) return;
@@ -170,11 +186,11 @@
     }
     roll(ix, iy) {
       if (this.rollCd > 0 || this.rollT > 0) return;
-      const cost = 22 * (1 - this.sk('agile') * 0.06);
+      const cost = 20 * (1 - this.sk('agile') * 0.06) * (this.perk('p_sprint') ? 0.6 : 1);
       if (this.stamina < cost) return;
       this.stamina -= cost;
       if (!ix && !iy) { ix = Math.cos(this.aim); iy = Math.sin(this.aim); }
-      this.rollDx = ix; this.rollDy = iy; this.rollT = 0.32; this.rollCd = 0.6; this.iframe = 0.22;
+      this.rollDx = ix; this.rollDy = iy; this.rollT = 0.32; this.rollCd = 0.6 * (1 - this.sk('kick') * 0.15); this.iframe = 0.28; this.postRoll = 0.5;
       this.useT = 0; this.useItem = null;
     }
     kick() {
@@ -270,6 +286,7 @@
     }
     meleeMul() {
       let m = 1 + this.sk('power') * 0.1;
+      if (this.postRoll > 0) m *= 1 + this.sk('kick') * 0.15;
       if (this.perk('p_butcher')) m *= 1.2;
       if (this.perk('p_adren') && this.hp < this.maxhp * 0.3) m *= 1.15;
       return m;
@@ -280,13 +297,12 @@
       if (d.chainsaw) return; // 由 sawTickUpdate 处理
       if (this.fireCd > 0) return;
       if (d.type === 'gun') {
-        if (!d.auto && !clicked) return;
         if (this.reloadT > 0) return;
         if (w.mag <= 0) { this.startReload(); if (clicked) this.raid.float(this.x, this.y, '咔哒', '#ccc'); this.fireCd = 0.25; return; }
         w.mag--; this.fireCd = 60 / d.rpm;
         const sp = this.currentSpread();
         const n = d.pellets || 1;
-        let dmg = d.dmg * (this.perk('p_head') ? 1.15 : 1);
+        let dmg = d.dmg * (this.perk('p_head') ? 1.15 : 1) * (1 + this.sk('focus') * 0.08);
         if (this.perk('p_adren') && this.hp < this.maxhp * 0.3) dmg *= 1.15;
         const ox = this.x + Math.cos(this.aim) * 0.5, oy = this.y - 0.1 + Math.sin(this.aim) * 0.5;
         for (let i = 0; i < n; i++) {
@@ -304,8 +320,12 @@
         if (this.stamina < d.stamina * 0.5) { if (clicked) this.raid.float(this.x, this.y, '没力气了', '#ffb0a0'); return; }
         this.stamina -= d.stamina;
         this.fireCd = d.speed; this.swingT = Math.min(0.25, d.speed * 0.6); this.swingDur = this.swingT;
-        const targets = this.raid.enemiesNear(this.x, this.y, d.range + 1)
-          .filter(e => U.dist(this.x, this.y, e.x, e.y) <= d.range + e.r && Math.abs(U.angDiff(this.aim, U.ang(this.x, this.y, e.x, e.y))) <= d.arc / 2 + 0.15)
+        this.swingSide = -(this.swingSide || 1);
+        const rng = d.range * (this.perk('p_kick') ? 1.3 : 1), arc = d.arc * (this.perk('p_kick') ? 1.3 : 1);
+        this.lastSwing = { range: rng, arc, t: 0.18, max: 0.18, aim: this.aim, side: this.swingSide };
+        if (d.lunge) { this.lungeT = 0.1; this.lungeDx = Math.cos(this.aim) * d.lunge * 10; this.lungeDy = Math.sin(this.aim) * d.lunge * 10; }
+        const targets = this.raid.enemiesNear(this.x, this.y, rng + 1)
+          .filter(e => U.dist(this.x, this.y, e.x, e.y) <= rng + e.r && Math.abs(U.angDiff(this.aim, U.ang(this.x, this.y, e.x, e.y))) <= arc / 2 + 0.15)
           .sort((a, b) => U.d2(this.x, this.y, a.x, a.y) - U.d2(this.x, this.y, b.x, b.y));
         const max = d.cleave || 1;
         const dmg = d.dmg * this.meleeMul();
