@@ -15,6 +15,9 @@
     smg05: { name: '05式冲锋枪', type: 'gun', slot: 'primary', r: 4, value: 4200, dmg: 22, rpm: 800, mag: 50, ammo: '58x21', spread: 0.065, recoil: 0.025, reload: 2.8, range: 13, noise: 26, auto: true, desc: '特警装备，射速快，后坐小。' },
     rifle95: { name: '95式自动步枪', type: 'gun', slot: 'primary', r: 5, value: 6800, dmg: 42, rpm: 650, mag: 30, ammo: '58mm', spread: 0.04, recoil: 0.04, reload: 3.0, range: 22, noise: 38, auto: true, desc: '武警卡口遗落的制式步枪。5.8mm，能打穿两只丧尸。', pierce: 2 },
     // ---------- 近战 ----------
+    fruitknife: { name: '水果刀', type: 'melee', slot: 'melee', r: 1, value: 30, dmg: 15, speed: 0.30, range: 1.0, arc: 1.1, stamina: 5, noise: 1, knock: 0.15, bleed: 0.35, lunge: 0.35, desc: '出租屋桌上削苹果的。短，但出手极快。' },
+    melonknife: { name: '西瓜刀', type: 'melee', slot: 'melee', r: 1, value: 70, dmg: 26, speed: 0.46, range: 1.3, arc: 1.7, stamina: 8, noise: 2, knock: 0.3, bleed: 0.5, cleave: 2, lunge: 0.25, desc: '水果摊上的长西瓜刀，一刀能扫两个。' },
+    woodstick: { name: '木棍', type: 'melee', slot: 'melee', r: 1, value: 20, dmg: 19, speed: 0.55, range: 1.6, arc: 1.8, stamina: 8, noise: 2, knock: 0.9, cleave: 3, lunge: 0.15, desc: '拆床板拆下来的硬木棍。够长，能把丧尸推开。' },
     fist: { name: '拳头', type: 'melee', slot: 'melee', r: 1, value: 0, dmg: 6, speed: 0.45, range: 0.9, arc: 1.0, stamina: 6, noise: 1, knock: 0.3, desc: '打工人最后的尊严。' },
     cleaver: { name: '菜刀', type: 'melee', slot: 'melee', r: 1, value: 80, dmg: 22, speed: 0.5, range: 1.1, arc: 1.2, stamina: 8, noise: 2, knock: 0.2, bleed: 0.3, desc: '粉店后厨拿的，剁骨头不卷刃。' },
     pipe: { name: '镀锌钢管', type: 'melee', slot: 'melee', r: 1, value: 60, dmg: 20, speed: 0.65, range: 1.4, arc: 1.4, stamina: 10, noise: 3, knock: 0.6, desc: '工地脚手架拆下来的，够长。' },
@@ -84,10 +87,10 @@
 
   // 建筑种类 -> 中文 & 搜索时间 & 掉落表
   D.kinds = {
-    residential: { name: '居民楼', t: 4, loot: [['noodle', 6], ['water', 6], ['biscuit', 4], ['bandage', 4], ['cleaver', 2], ['cig', 4], ['phone', 3], ['powerbank', 3], ['goldchain', 1], ['sanhua', 2], ['painkiller', 3], ['rice', 2], ['bag_school', 1], ['helm_delivery', 1], ['hammer', 1]] },
-    village: { name: '城中村自建房', t: 3, loot: [['noodle', 6], ['luosifen', 4], ['water', 5], ['cig', 5], ['sanhua', 3], ['brick', 6], ['firecracker', 3], ['cleaver', 2], ['battery', 2], ['bag_plastic', 2], ['helm_delivery', 2], ['huntshot', 0.4], ['12g', 1], ['rice', 2], ['powerbank', 2], ['machete', 0.6]] },
+    residential: { name: '居民楼', t: 4, loot: [['fruitknife', 2], ['woodstick', 2], ['noodle', 6], ['water', 6], ['biscuit', 4], ['bandage', 4], ['cleaver', 2], ['cig', 4], ['phone', 3], ['powerbank', 3], ['goldchain', 1], ['sanhua', 2], ['painkiller', 3], ['rice', 2], ['bag_school', 1], ['helm_delivery', 1], ['hammer', 1]] },
+    village: { name: '城中村自建房', t: 3, loot: [['woodstick', 3], ['melonknife', 1.5], ['noodle', 6], ['luosifen', 4], ['water', 5], ['cig', 5], ['sanhua', 3], ['brick', 6], ['firecracker', 3], ['cleaver', 2], ['battery', 2], ['bag_plastic', 2], ['helm_delivery', 2], ['huntshot', 0.4], ['12g', 1], ['rice', 2], ['powerbank', 2], ['machete', 0.6]] },
     shop: { name: '临街商铺', t: 3, loot: [['phone', 4], ['powerbank', 4], ['cig', 4], ['water', 4], ['redbull', 4], ['express', 5], ['tools', 2], ['bag_school', 1], ['goldchain', 0.6], ['maotai', 0.3]] },
-    restaurant: { name: '粉店', t: 3, loot: [['noodle', 10], ['luosifen', 8], ['cleaver', 4], ['water', 5], ['sanhua', 4], ['fuel', 1], ['rice', 2]] },
+    restaurant: { name: '粉店', t: 3, loot: [['fruitknife', 3], ['noodle', 10], ['luosifen', 8], ['cleaver', 4], ['water', 5], ['sanhua', 4], ['fuel', 1], ['rice', 2]] },
     pharmacy: { name: '药店', t: 4, loot: [['bandage', 8], ['baiyao', 6], ['antibiotic', 5], ['painkiller', 6], ['firstaid', 1.5], ['medkit_box', 0.8]] },
     convenience: { name: '便利店', t: 3, loot: [['redbull', 8], ['water', 8], ['biscuit', 6], ['cig', 6], ['noodle', 4], ['powerbank', 3], ['firecracker', 2]] },
     hardware: { name: '五金店', t: 4, loot: [['hammer', 5], ['pipe', 5], ['shovel', 3], ['nailgun', 3], ['nail', 6], ['tools', 5], ['fuel', 3], ['machete', 2], ['chainsaw', 0.5], ['fireaxe', 0.8], ['bag_plastic', 2]] },
@@ -102,7 +105,7 @@
     bank: { name: '银行', t: 6, loot: [['goldchain', 4], ['baton', 2], ['pistol92', 0.5], ['9mm', 1], ['body_stab', 0.6], ['harddisk', 0.8]] },
     parking: { name: '立体车库', t: 4, loot: [['fuel', 5], ['battery', 4], ['tools', 3], ['helm_moto', 1.5], ['body_leather', 1]] },
     school: { name: '学校', t: 5, loot: [['water', 4], ['biscuit', 4], ['bandage', 3], ['bag_school', 3], ['pipe', 2], ['fireaxe', 0.6]] },
-    market: { name: '菜市场', t: 4, loot: [['rice', 6], ['cleaver', 5], ['noodle', 4], ['luosifen', 4], ['machete', 2], ['sanhua', 2], ['water', 3]] },
+    market: { name: '菜市场', t: 4, loot: [['melonknife', 4], ['fruitknife', 3], ['rice', 6], ['cleaver', 5], ['noodle', 4], ['luosifen', 4], ['machete', 2], ['sanhua', 2], ['water', 3]] },
     warehouse: { name: '仓库', t: 5, loot: [['express', 8], ['battery', 3], ['tools', 3], ['fuel', 2], ['bag_delivery', 1.5], ['body_work', 2], ['rice', 3], ['chainsaw', 0.3]] },
     // 室外容器
     car: { name: '废弃汽车', t: 3, loot: [['fuel', 4], ['water', 3], ['cig', 4], ['powerbank', 3], ['tools', 2], ['phone', 2], ['baton', 0.6], ['huntshot', 0.15], ['12g', 0.8], ['goldchain', 0.4]] },
@@ -130,13 +133,13 @@
     { branch: '枪械', nodes: [
       { id: 'steady', name: '稳定射击', max: 5, desc: (l) => `射击散布 -${l * 8}%` },
       { id: 'reload', name: '快速换弹', max: 5, desc: (l) => `换弹速度 +${l * 8}%` },
-      { id: 'focus', name: '专注(主动Q)', max: 3, desc: (l) => l ? `解锁专注：${3 + l}秒内散布与后坐大幅降低，冷却${30 - l * 4}秒` : '解锁主动技能：专注' },
+      { id: 'focus', name: '稳手', max: 3, desc: (l) => `枪械伤害 +${l * 8}%` },
       { id: 'recoil', name: '压枪', max: 5, desc: (l) => `连射后坐 -${l * 10}%` },
     ]},
     { branch: '近战', nodes: [
       { id: 'power', name: '力气活', max: 5, desc: (l) => `近战伤害 +${l * 10}%` },
       { id: 'endure', name: '耐力', max: 5, desc: (l) => `最大体力 +${l * 10}` },
-      { id: 'kick', name: '踢门脚', max: 3, desc: (l) => `踢击击退 +${l * 30}%，伤害 +${l * 5}` },
+      { id: 'kick', name: '翻滚达人', max: 3, desc: (l) => `翻滚冷却 -${l * 15}%，翻滚后 0.5 秒近战伤害 +${l * 15}%` },
       { id: 'saw', name: '油锯精通', max: 3, desc: (l) => `油锯耗油 -${l * 20}%，伤害 +${l * 10}%` },
     ]},
     { branch: '生存', nodes: [
@@ -167,9 +170,9 @@
     { id: 'p_clot', name: '凝血体质', desc: '不会持续流血', w: 2 },
     { id: 'p_resist', name: '抗体', desc: '感染累积-35%', w: 2 },
     { id: 'p_hunger', name: '饭量小', desc: '饥饿下降速度-50%', w: 2 },
-    { id: 'p_kick', name: '飞踹', desc: '踢击冷却-50%，可踢倒肿胀者', w: 2 },
+    { id: 'p_kick', name: '大开大合', desc: '近战攻击范围与角度+30%', w: 2 },
     { id: 'p_reload', name: '肌肉记忆', desc: '换弹速度+25%', w: 3 },
-    { id: 'p_sprint', name: '外卖超时冲刺', desc: '冲刺耗体-40%', w: 3 },
+    { id: 'p_sprint', name: '外卖超时冲刺', desc: '翻滚耗体-40%，移速+8%', w: 3 },
     { id: 'p_scrap', name: '拆解', desc: '击杀变异体必掉一件物资', w: 2 },
     { id: 'p_eye', name: '夜视', desc: '夜晚/暴雨视野+40%', w: 2 },
     { id: 'p_armor', name: '缝补', desc: '护甲耐久立即回满，护甲减伤+8%', w: 2 },
@@ -189,7 +192,7 @@
   ];
 
   // ---------- 商人 ----------
-  D.shop = ['cleaver', 'pipe', 'hammer', 'nailgun', 'nail', 'brick', 'firecracker', 'molotov', '9mm', '12g', 'bandage', 'baiyao', 'antibiotic', 'painkiller', 'noodle', 'redbull', 'water', 'helm_delivery', 'body_work', 'bag_school', 'bag_delivery', 'huntshot', 'fuel'];
+  D.shop = ['fruitknife', 'melonknife', 'woodstick', 'cleaver', 'pipe', 'hammer', 'nailgun', 'nail', 'brick', 'firecracker', 'molotov', '9mm', '12g', 'bandage', 'baiyao', 'antibiotic', 'painkiller', 'noodle', 'redbull', 'water', 'helm_delivery', 'body_work', 'bag_school', 'bag_delivery', 'huntshot', 'fuel'];
   D.shopRare = ['revolver', 'pistol92', 'shotgun97', 'machete', 'fireaxe', 'helm_moto', 'body_leather', 'body_stab', 'bag_hiking', 'firstaid', 'bolt', 'slingbow', 'chainsaw', '58x21', 'smg05'];
 
   D.EVAC_COST = 50000; // 撤离名额
@@ -204,7 +207,7 @@
     '你叫韦小东，26岁，宾阳人，原本是那座物流园的夜班分拣员。爆发那晚你请假回了出租屋，侥幸活了下来。',
     '现在你和一群幸存者躲在西乡塘的城中村里，用铁皮和电动车堵住了巷口。',
     '邕江北岸的民兵卡口还在运作：用药品、电池、粮食、情报换“撤离积分”，攒够 5 万积分，就能坐上开往外环安置区的撤离车。',
-    '你没有超能力，只是个普通打工人。你有的，只是一把从粉店后厨拿的菜刀，和必须活下去的理由。',
+    '你没有超能力，只是个普通打工人。你有的，只是一把从水果摊顺来的西瓜刀，和必须活下去的理由。',
     '每天，进城、搜刮、在尸潮到来之前撤出来。',
   ];
 
