@@ -40,7 +40,7 @@ canvas#game{position:fixed;inset:0;width:100vw;height:100vh;display:block;cursor
 #hud-extract div{margin:2px 0}
 #hud-extract .open{color:#9fe08a}
 #hud-extract .closed{color:#aaa;text-decoration:line-through}
-#hud-log{position:absolute;left:14px;top:14px;width:380px;font-size:14px;line-height:1.45}
+#hud-log{position:absolute;left:14px;top:50px;width:380px;font-size:14px;line-height:1.45}
 #hud-log div{animation:fadeLog 6s forwards}
 @keyframes fadeLog{0%{opacity:0}5%{opacity:1}80%{opacity:1}100%{opacity:0}}
 #hud-prompt{position:absolute;left:50%;top:62%;transform:translateX(-50%);font-size:18px;color:#fff3c8}
@@ -99,3 +99,9 @@ table.tb td,table.tb th{border-bottom:1px dashed var(--ink2);padding:4px 6px;tex
 #toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font-size:34px;color:#fff3c8;text-shadow:0 2px 0 #000,0 0 8px #000;pointer-events:none;z-index:9;text-align:center}
 .close-x{position:absolute;right:14px;top:10px}
 .stamp{display:inline-block;border:3px solid var(--red);color:var(--red);padding:2px 10px;transform:rotate(-6deg);font-size:22px;border-radius:6px;margin-left:10px}
+
+#hud-btns{position:absolute;left:14px;top:14px;display:flex;gap:6px;pointer-events:auto}
+.hbtn{cursor:pointer;background:rgba(30,24,20,.6);border:2px solid rgba(239,229,207,.45);border-radius:8px 3px 9px 4px;padding:3px 10px;font-size:14px;color:#efe5cf;user-select:none}
+.hbtn:hover{background:rgba(120,60,30,.7)}
+#minimap{pointer-events:auto;cursor:pointer}
+#game{cursor:none}
