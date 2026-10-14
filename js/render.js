@@ -15,21 +15,33 @@
     R.ctx = c; R.canvas = cv;
   };
   R.resize = () => {
-    const dpr = 1; // 手绘风无需高分屏，保证性能
-    W = cv.width = Math.floor(window.innerWidth * dpr); H = cv.height = Math.floor(window.innerHeight * dpr);
+    cv.width = window.innerWidth; cv.height = window.innerHeight;
+    // 镜头放大：人物和场景都画得更大更清楚
+    R.Z = U.clamp(window.innerHeight / 470, 1.4, 2.4);
+    W = Math.ceil(cv.width / R.Z); H = Math.ceil(cv.height / R.Z);
     bcv.width = W; bcv.height = H; lcv.width = W; lcv.height = H;
     R.W = W; R.H = H;
     if (c) R.paperPat = paper && c.createPattern(paper, 'repeat');
   };
   R.sx = (wx) => (wx - R.cam.x) * TS + W / 2;
   R.sy = (wy) => (wy - R.cam.y) * TS + H / 2;
-  R.toWorld = (px, py) => [(px - W / 2) / TS + R.cam.x, (py - H / 2) / TS + R.cam.y];
+  R.toWorld = (px, py) => [(px / R.Z - W / 2) / TS + R.cam.x, (py / R.Z - H / 2) / TS + R.cam.y];
+  R.zoomOn = () => c.setTransform(R.Z, 0, 0, R.Z, 0, 0);
+  R.zoomOff = () => c.setTransform(1, 0, 0, 1, 0, 0);
 
   // ---------- 角色绘制 ----------
   const INK = '#2b2420';
   function boilRnd(e, t) { return U.rng((e.seed || 1) + Math.floor(t * 8) * 7919); }
 
-  function drawShadow(x, y, rx, ry) { c.fillStyle = 'rgba(30,22,15,0.28)'; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 6.29); c.fill(); }
+  function drawShadow(x, y, rx, ry) { c.fillStyle = 'rgba(30,22,15,0.30)'; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 6.29); c.fill(); }
+  // 带墨线的粗线条（四肢、棍棒）
+  function inkLine(x1, y1, x2, y2, w, col) {
+    c.lineCap = 'round';
+    c.strokeStyle = INK; c.lineWidth = w + 2.4; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+    c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+  }
+  function blob(x, y, r, col, lw = 1.8) { c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, 6.29); c.fill(); c.strokeStyle = INK; c.lineWidth = lw; c.stroke(); }
+  function rrect(x, y, w, h, r, col, lw = 1.8) { c.fillStyle = col; c.beginPath(); c.roundRect(x, y, w, h, r); c.fill(); c.strokeStyle = INK; c.lineWidth = lw; c.stroke(); }
 
   function drawWeapon(x, y, ang, w, e, t) {
     if (!w) return;
@@ -37,151 +49,218 @@
     c.save(); c.translate(x, y);
     let a = ang;
     if (d.type === 'melee' && e.swingT > 0 && !d.chainsaw) {
-      const p = 1 - e.swingT / e.swingDur;
-      a = ang - 1.1 + p * 2.2;
-    }
+      const p = 1 - e.swingT / e.swingDur, sd = e.swingSide || 1;
+      a = ang - 1.25 * sd + p * 2.5 * sd;
+    } else if (d.type === 'melee' && !d.chainsaw) a = ang - 0.55; // 待机时刀尖略抬
     c.rotate(a);
-    c.lineCap = 'round';
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    const steel = '#dfe4e8', edge = '#9aa3aa';
     if (d.type === 'gun') {
-      const len = d.slot === 'primary' ? 22 : 12;
-      c.strokeStyle = '#1e1c1a'; c.lineWidth = d.slot === 'primary' ? 4.5 : 4; c.beginPath(); c.moveTo(2, 0); c.lineTo(len, 0); c.stroke();
-      if (w.id === 'slingbow') { c.strokeStyle = '#4a3a2a'; c.lineWidth = 2; c.beginPath(); c.moveTo(len - 4, -8); c.quadraticCurveTo(len + 2, 0, len - 4, 8); c.stroke(); }
-      if (w.id === 'nailgun') { c.fillStyle = '#d8a020'; c.fillRect(2, -4, 10, 8); }
-      if (d.slot === 'primary') { c.fillStyle = '#4a3a2a'; c.fillRect(0, -2, 8, 4); }
+      const len = d.slot === 'primary' ? 22 : 13;
+      c.fillStyle = '#26231f'; c.strokeStyle = INK; c.lineWidth = 1.2;
+      c.beginPath(); c.roundRect(0, -2.6, len, 5.2, 1.5); c.fill(); c.stroke();
+      if (d.slot === 'primary') { c.fillStyle = '#6a4a2e'; c.beginPath(); c.roundRect(-5, -2.8, 9, 5.6, 2); c.fill(); c.stroke(); c.fillStyle = '#26231f'; c.fillRect(7, 2, 4, 5); }
+      else { c.fillStyle = '#26231f'; c.fillRect(1, 2, 4, 5); }
+      if (w.id === 'nailgun') { c.fillStyle = '#e0a820'; c.beginPath(); c.roundRect(1, -5, 11, 9, 2); c.fill(); c.stroke(); }
+      if (w.id === 'slingbow') { c.strokeStyle = '#4a3a2a'; c.lineWidth = 2.2; c.beginPath(); c.moveTo(len - 4, -9); c.quadraticCurveTo(len + 3, 0, len - 4, 9); c.stroke(); }
     } else if (d.chainsaw) {
-      c.fillStyle = '#d06a1a'; c.fillRect(0, -5, 10, 10); c.strokeStyle = INK; c.lineWidth = 1; c.strokeRect(0, -5, 10, 10);
-      c.fillStyle = '#9a9a96'; c.fillRect(10, -3, 18, 6);
-      c.strokeStyle = '#333'; c.setLineDash([2, 2]); c.lineDashOffset = -t * 60; c.strokeRect(10, -3.5, 18, 7); c.setLineDash([]);
-    } else {
-      const len = { cleaver: 12, pipe: 22, hammer: 13, baton: 16, shovel: 22, machete: 18, fireaxe: 20, fist: 0 }[w.id] || 14;
-      if (len) {
-        c.strokeStyle = w.id === 'pipe' ? '#8a8e90' : '#5a3a22'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 0); c.lineTo(len, 0); c.stroke();
-        c.fillStyle = '#c8ccd0'; c.strokeStyle = INK; c.lineWidth = 1;
-        if (w.id === 'cleaver') { c.fillRect(len - 6, -6, 9, 7); c.strokeRect(len - 6, -6, 9, 7); }
-        if (w.id === 'machete') { c.beginPath(); c.moveTo(5, -1); c.lineTo(len + 4, -4); c.lineTo(len + 2, 2); c.lineTo(5, 2); c.closePath(); c.fill(); c.stroke(); }
-        if (w.id === 'fireaxe') { c.fillStyle = '#b8322a'; c.beginPath(); c.moveTo(len - 4, -2); c.lineTo(len + 2, -9); c.lineTo(len + 4, 3); c.closePath(); c.fill(); c.stroke(); }
-        if (w.id === 'hammer') { c.fillStyle = '#555'; c.fillRect(len - 2, -5, 5, 10); }
-        if (w.id === 'shovel') { c.fillStyle = '#6a7a5a'; c.fillRect(len - 2, -5, 8, 10); c.strokeRect(len - 2, -5, 8, 10); }
-      }
+      rrect(-2, -6, 12, 12, 2, '#e07a1e', 1.4);
+      c.fillStyle = '#aab0b4'; c.beginPath(); c.roundRect(10, -3.5, 20, 7, 3.5); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.2; c.stroke();
+      c.strokeStyle = '#333'; c.setLineDash([2, 2]); c.lineDashOffset = -t * 60; c.beginPath(); c.roundRect(10, -4, 20, 8, 4); c.stroke(); c.setLineDash([]);
+    } else if (w.id === 'fruitknife') {
+      inkLine(0, 0, 6, 0, 3.2, '#c8402a');
+      c.fillStyle = steel; c.strokeStyle = INK; c.lineWidth = 1.2; c.beginPath(); c.moveTo(6, -2); c.lineTo(15, -1); c.lineTo(17, 0.6); c.lineTo(6, 2); c.closePath(); c.fill(); c.stroke();
+    } else if (w.id === 'melonknife') {
+      inkLine(0, 0, 6, 0, 3.4, '#3a2a1e');
+      c.fillStyle = steel; c.strokeStyle = INK; c.lineWidth = 1.3; c.beginPath(); c.moveTo(6, -3.2); c.lineTo(23, -3.2); c.quadraticCurveTo(26, -1, 23, 3); c.lineTo(6, 3); c.closePath(); c.fill(); c.stroke();
+      c.strokeStyle = edge; c.lineWidth = 1; c.beginPath(); c.moveTo(8, 1.6); c.lineTo(22, 1.6); c.stroke();
+    } else if (w.id === 'woodstick') {
+      inkLine(-3, 0, 25, 0, 3.8, '#9a6a3a');
+      c.strokeStyle = 'rgba(70,40,15,0.6)'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(4, -0.6); c.lineTo(12, -0.6); c.moveTo(15, 0.8); c.lineTo(22, 0.8); c.stroke();
+    } else if (w.id !== 'fist') {
+      const len = { cleaver: 12, pipe: 22, hammer: 13, baton: 16, shovel: 22, machete: 18, fireaxe: 20 }[w.id] || 14;
+      inkLine(0, 0, len, 0, 3, w.id === 'pipe' || w.id === 'baton' ? '#8a8e90' : '#6a4426');
+      c.fillStyle = steel; c.strokeStyle = INK; c.lineWidth = 1.2;
+      if (w.id === 'cleaver') { c.beginPath(); c.roundRect(len - 7, -7, 11, 8, 1); c.fill(); c.stroke(); }
+      if (w.id === 'machete') { c.beginPath(); c.moveTo(5, -1.5); c.lineTo(len + 5, -4.5); c.lineTo(len + 3, 2.5); c.lineTo(5, 2.5); c.closePath(); c.fill(); c.stroke(); }
+      if (w.id === 'fireaxe') { c.fillStyle = '#c0362a'; c.beginPath(); c.moveTo(len - 4, -2); c.lineTo(len + 3, -10); c.lineTo(len + 5, 3); c.closePath(); c.fill(); c.stroke(); }
+      if (w.id === 'hammer') { c.fillStyle = '#555'; c.beginPath(); c.roundRect(len - 2, -6, 6, 12, 1); c.fill(); c.stroke(); }
+      if (w.id === 'shovel') { c.fillStyle = '#6a7a5a'; c.beginPath(); c.roundRect(len - 2, -5.5, 9, 11, 3); c.fill(); c.stroke(); }
     }
     c.restore();
   }
 
+  // 挥砍刀光
+  function drawSwing(e, cy) {
+    const s = e.lastSwing; if (!s) return;
+    const al = s.t / s.max, R0 = s.range * TS / 1.15;
+    const a0 = s.aim - s.arc / 2, a1 = s.aim + s.arc / 2;
+    c.fillStyle = 'rgba(255,250,228,' + (al * 0.55) + ')';
+    c.beginPath(); c.arc(0, cy, R0, a0, a1); c.arc(0, cy, R0 * 0.55, a1, a0, true); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,' + (al * 0.9) + ')'; c.lineWidth = 2; c.beginPath(); c.arc(0, cy, R0, a0, a1); c.stroke();
+  }
+
+  // 手绘人物（玩家 / 掠夺者 / 幸存者）
   R.drawHuman = (e, t, opts) => {
     const x = R.sx(e.x), y = R.sy(e.y);
-    const rnd = boilRnd(e, t);
-    const walk = e.moving ? Math.sin(e.walkT * 12) : 0;
-    drawShadow(x, y + 1, 9, 4);
+    const S = 1.15;
+    const ph = e.walkT * 11;
+    const walk = e.moving ? Math.sin(ph) : 0;
+    const bob = e.moving ? Math.abs(Math.cos(ph)) * 1.4 : Math.sin(t * 2.2) * 0.4;
+    drawShadow(x, y + 1, 11, 4.8);
+    c.save(); c.translate(x, y); c.scale(S, S);
     if (e.rollT > 0) { // 翻滚
-      c.save(); c.translate(x, y - 7); c.rotate(t * 25);
-      c.fillStyle = opts.body; SK.circle(c, 0, 0, 8, rnd, .15); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.6; c.stroke(); c.restore(); return;
+      c.translate(0, -10); c.rotate(t * 22);
+      blob(0, 0, 9, opts.body, 2); blob(5, -4, 5.5, opts.skin, 1.6);
+      c.restore(); return;
     }
-    // 腿
-    c.strokeStyle = '#2a2a30'; c.lineWidth = 3.2; c.lineCap = 'round'; c.beginPath();
-    c.moveTo(x - 3, y - 6); c.lineTo(x - 3 + walk * 3, y);
-    c.moveTo(x + 3, y - 6); c.lineTo(x + 3 - walk * 3, y); c.stroke();
-    const facingUp = Math.sin(e.aim) < -0.3;
-    // 背包
-    if (opts.bag && !facingUp) { c.fillStyle = opts.bag; c.fillRect(x - 6, y - 19, 12, 10); }
-    // 身体
-    c.fillStyle = opts.body; SK.circle(c, x, y - 12, 7.5, rnd, .14, 10); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.6; c.stroke();
-    if (opts.bag && facingUp) { c.fillStyle = opts.bag; c.fillRect(x - 6, y - 17, 12, 10); c.strokeStyle = INK; c.lineWidth = 1; c.strokeRect(x - 6, y - 17, 12, 10); }
-    // 手臂 + 武器
-    const hx = x + Math.cos(e.aim) * 6, hy = y - 12 + Math.sin(e.aim) * 5;
-    c.strokeStyle = opts.skin; c.lineWidth = 3; c.beginPath(); c.moveTo(x - 4, y - 13); c.lineTo(hx, hy); c.moveTo(x + 4, y - 13); c.lineTo(hx, hy); c.stroke();
-    drawWeapon(hx, hy, e.aim, opts.weapon, e, t);
+    const ca = Math.cos(e.aim), sa = Math.sin(e.aim);
+    const up = sa < -0.35;
+    const pants = opts.pants || '#2e3442';
+    // 腿 + 鞋
+    for (const k of [-1, 1]) {
+      const sw = walk * k * 3.4;
+      inkLine(k * 3.2, -10, k * 3.2 + sw, -2.5, 4.2, pants);
+      c.fillStyle = '#1e1a18'; c.beginPath(); c.ellipse(k * 3.2 + sw + ca * 1.2, -1.6, 3, 2, 0, 0, 6.29); c.fill();
+    }
+    c.translate(0, -bob);
+    const hx = ca * 10, hy = -16 + sa * 6;
+    drawSwing(e, -15);
+    if (up) drawWeapon(hx, hy, e.aim, opts.weapon, e, t);
+    // 背包（面向下时在身后，露出一点）
+    if (opts.bag && !up) rrect(-7, -24, 14, 7, 2, opts.bag, 1.4);
+    // 躯干
+    rrect(-7.5, -23, 15, 15, 5, opts.body, 2);
+    c.fillStyle = 'rgba(0,0,0,0.16)'; c.beginPath(); c.roundRect(-7.5, -13, 15, 5, [0, 0, 5, 5]); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,0.25)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(-5, -20); c.lineTo(-5, -14); c.stroke();
+    if (opts.bag && up) { rrect(-6.5, -22, 13, 11, 3, opts.bag, 1.6); c.strokeStyle = 'rgba(0,0,0,0.35)'; c.lineWidth = 1; c.beginPath(); c.moveTo(-6, -17); c.lineTo(6, -17); c.stroke(); }
+    else if (opts.bag) { c.strokeStyle = U.shade(opts.bag, 0.8); c.lineWidth = 2; c.beginPath(); c.moveTo(-5, -23); c.lineTo(-4, -10); c.moveTo(5, -23); c.lineTo(4, -10); c.stroke(); }
+    // 手臂
+    const sleeve = opts.sleeve || opts.body;
+    inkLine(-6, -20, hx - ca * 1 - sa * 2, hy + ca * 1.5, 3.4, sleeve);
+    inkLine(6, -20, hx + sa * 2, hy - ca * 1.5, 3.4, sleeve);
+    if (!up) drawWeapon(hx, hy, e.aim, opts.weapon, e, t);
+    blob(hx, hy, 2.4, opts.skin, 1.2);
     // 头
-    c.fillStyle = opts.skin; SK.circle(c, x, y - 22, 5.5, rnd, .12, 9); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke();
-    if (opts.helmet) { c.fillStyle = opts.helmet; c.beginPath(); c.arc(x, y - 23, 6.2, Math.PI, 0); c.fill(); c.strokeStyle = INK; c.stroke(); }
-    else if (opts.hair) { c.fillStyle = opts.hair; c.beginPath(); c.arc(x, y - 23.5, 5.5, Math.PI * 1.05, Math.PI * 1.95); c.fill(); }
-    if (opts.mask) { c.fillStyle = opts.mask; c.fillRect(x - 5, y - 21, 10, 4); }
-    if (e.hitT > 0) { c.fillStyle = 'rgba(255,255,255,' + (e.hitT * 3) + ')'; c.beginPath(); c.arc(x, y - 14, 11, 0, 6.29); c.fill(); }
+    const hdx = ca * 0.8, hdy = -30;
+    blob(hdx, hdy, 7.4, opts.skin, 2);
+    if (opts.helmet) {
+      c.fillStyle = opts.helmet; c.beginPath(); c.arc(hdx, hdy - 1, 8.2, Math.PI * 0.95, Math.PI * 2.05); c.closePath(); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.8; c.stroke();
+      c.fillStyle = 'rgba(255,255,255,0.35)'; c.beginPath(); c.ellipse(hdx - 3, hdy - 5, 2.5, 1.4, -0.4, 0, 6.29); c.fill();
+    } else if (opts.hair) {
+      c.fillStyle = opts.hair; c.beginPath();
+      if (up) { c.arc(hdx, hdy, 7.6, 0, 6.29); }
+      else { c.arc(hdx, hdy - 0.5, 7.6, Math.PI * 0.98, Math.PI * 2.02); c.lineTo(hdx + 6, hdy - 2); c.lineTo(hdx + 2, hdy - 4); c.lineTo(hdx - 1, hdy - 2.5); c.lineTo(hdx - 4, hdy - 4); c.lineTo(hdx - 7, hdy - 1.5); }
+      c.closePath(); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.6; c.stroke();
+    }
+    if (!up) { // 眼睛
+      const ex = hdx + ca * 2.6, ey = hdy + 1 + Math.max(0, sa) * 1.2;
+      c.fillStyle = '#1a1412'; c.beginPath(); c.ellipse(ex - 2.6, ey, 1.1, 1.6, 0, 0, 6.29); c.ellipse(ex + 2.6, ey, 1.1, 1.6, 0, 0, 6.29); c.fill();
+      c.fillStyle = 'rgba(220,110,90,0.35)'; c.beginPath(); c.arc(ex - 4.2, ey + 2.4, 1.4, 0, 6.29); c.arc(ex + 4.2, ey + 2.4, 1.4, 0, 6.29); c.fill();
+    }
+    if (opts.mask && !up) { c.fillStyle = opts.mask; c.beginPath(); c.roundRect(hdx - 6.5, hdy + 1.5, 13, 5, 2); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.2; c.stroke(); }
+    if (e.hitT > 0) { c.fillStyle = 'rgba(255,255,255,' + Math.min(0.8, e.hitT * 3) + ')'; c.beginPath(); c.arc(0, -18, 14, 0, 6.29); c.fill(); }
+    c.restore();
   };
 
+  // 手绘丧尸与变异体
   R.drawZombie = (e, t) => {
     const def = G.D.enemies[e.type];
     const x = R.sx(e.x), y = R.sy(e.y);
-    const rnd = boilRnd(e, t);
-    const walk = Math.sin(e.walkT * (e.type === 'runner' ? 14 : 7));
     const col = e.col || def.color;
     const a = e.face;
+    const ca = Math.cos(a), sa = Math.sin(a);
     let alpha = 1;
     if (e.type === 'crawler' && e.hidden) alpha = 0.35;
     c.globalAlpha = alpha;
-    const sc = e.type === 'brute' ? 1.9 : e.type === 'bloater' ? 1.5 : e.type === 'thrower' ? 1.25 : 1;
-    drawShadow(x, y + 1, 9 * sc, 4 * sc);
-    c.lineCap = 'round';
+    const sc = (e.type === 'brute' ? 1.85 : e.type === 'bloater' ? 1.45 : e.type === 'thrower' ? 1.25 : 1) * 1.12;
+    const ph = e.walkT * (e.type === 'runner' ? 13 : 6.5);
+    const walk = Math.sin(ph);
+    drawShadow(x, y + 1, 10 * sc, 4.5 * sc);
+    const skin = col, cloth = e.cloth || '#6a6a5a';
+    c.save(); c.translate(x, y); c.scale(sc, sc);
+    const up = sa < -0.35;
     if (e.type === 'crawler') {
-      c.fillStyle = col; SK.circle(c, x, y - 5, 8, rnd, .2); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.5; c.stroke();
-      c.strokeStyle = col; c.lineWidth = 3; c.beginPath();
-      c.moveTo(x, y - 5); c.lineTo(x + Math.cos(a - .5 + walk * .3) * 13, y - 5 + Math.sin(a - .5) * 9);
-      c.moveTo(x, y - 5); c.lineTo(x + Math.cos(a + .5 - walk * .3) * 13, y - 5 + Math.sin(a + .5) * 9); c.stroke();
-      c.fillStyle = '#9a8c78'; SK.circle(c, x + Math.cos(a) * 7, y - 7 + Math.sin(a) * 4, 4.5, rnd, .2); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.2; c.stroke();
-      c.globalAlpha = 1; return;
+      c.rotate(0);
+      inkLine(-4, -4, -4 + ca * 10 - sa * 5 + walk * 2, -4 + sa * 6 + ca * 4, 3, skin);
+      inkLine(4, -4, 4 + ca * 10 + sa * 5 - walk * 2, -4 + sa * 6 - ca * 4, 3, skin);
+      c.fillStyle = cloth; c.beginPath(); c.ellipse(-ca * 3, -4, 9, 5.5, a, 0, 6.29); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.8; c.stroke();
+      blob(ca * 7, -6 + sa * 3, 5.2, U.shade(skin, 1.15), 1.6);
+      c.fillStyle = '#ff5030'; c.beginPath(); c.arc(ca * 9 - 1.8, -6.5 + sa * 3, 1, 0, 6.29); c.arc(ca * 9 + 1.8, -6.5 + sa * 3, 1, 0, 6.29); c.fill();
+      c.restore(); c.globalAlpha = 1; return;
     }
-    // 腿
-    c.strokeStyle = '#3a3630'; c.lineWidth = 3 * sc; c.beginPath();
-    c.moveTo(x - 3 * sc, y - 6 * sc); c.lineTo(x - 3 * sc + walk * 3, y);
-    c.moveTo(x + 3 * sc, y - 6 * sc); c.lineTo(x + 3 * sc - walk * 3, y); c.stroke();
+    // 拖着脚的腿
+    for (const k of [-1, 1]) inkLine(k * 3.3, -10, k * 3.3 + walk * k * 2.6, -2.5, 4, U.shade(cloth, 0.7));
     // 触手(身后)
     if (e.type === 'tentacle') {
       for (let k = 0; k < 4; k++) {
-        const base = a + Math.PI + (k - 1.5) * 0.6;
-        const wav = Math.sin(t * 3 + k * 1.7) * 0.6;
-        const L = 20 + k % 2 * 6;
-        c.strokeStyle = '#6e4038'; c.lineWidth = 4 - k * 0.5;
-        c.beginPath(); c.moveTo(x, y - 14);
-        c.quadraticCurveTo(x + Math.cos(base + wav) * L * .6, y - 14 + Math.sin(base + wav) * L * .4 - 8, x + Math.cos(base - wav) * L, y - 14 + Math.sin(base - wav) * L * .6 - 10);
-        c.stroke();
+        const base = a + Math.PI + (k - 1.5) * 0.65, wav = Math.sin(t * 3 + k * 1.7) * 0.6, L = 18 + (k % 2) * 6;
+        c.strokeStyle = INK; c.lineWidth = 6 - k * 0.6; c.lineCap = 'round';
+        const path = () => { c.beginPath(); c.moveTo(0, -18); c.quadraticCurveTo(Math.cos(base + wav) * L * .6, -18 + Math.sin(base + wav) * L * .4 - 8, Math.cos(base - wav) * L, -18 + Math.sin(base - wav) * L * .6 - 10); };
+        path(); c.stroke(); c.strokeStyle = '#8a4a40'; c.lineWidth = 3.8 - k * 0.6; path(); c.stroke();
       }
     }
-    // 身体
-    const by = y - 12 * sc;
-    c.fillStyle = col;
+    const lean = ca * 2.5; // 前倾
+    const by = -16;
     if (e.type === 'bloater') {
-      SK.circle(c, x, by, 10 * sc * (1 + Math.sin(t * 2) * 0.03), rnd, .12, 14); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.8; c.stroke();
-      c.fillStyle = '#b8b060'; for (let k = 0; k < 5; k++) { const aa = k * 1.3 + e.seed % 5, rr = 7 * sc; c.beginPath(); c.arc(x + Math.cos(aa) * rr * .7, by + Math.sin(aa) * rr * .6, 2.5, 0, 6.29); c.fill(); }
+      const r = 11 * (1 + Math.sin(t * 2) * 0.04);
+      blob(lean * 0.5, by + 1, r, skin, 2);
+      c.fillStyle = cloth; c.beginPath(); c.arc(lean * 0.5, by + 1, r, Math.PI * 1.1, Math.PI * 1.9); c.closePath(); c.fill();
+      c.fillStyle = '#c8c060'; for (let k = 0; k < 6; k++) { const aa = k * 1.1 + (e.seed % 5), rr = r * 0.62; blob(lean * 0.5 + Math.cos(aa) * rr, by + 1 + Math.sin(aa) * rr * 0.8, 2.2, '#c8c060', 0.8); }
     } else {
-      SK.circle(c, x, by, 7.5 * sc, rnd, .2, 10); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.6; c.stroke();
-      // 破衣服
-      c.fillStyle = e.cloth; c.beginPath(); c.moveTo(x - 6 * sc, by - 2 * sc); c.lineTo(x + 6 * sc, by - 3 * sc); c.lineTo(x + 5 * sc, by + 5 * sc); c.lineTo(x + 1, by + 2 * sc); c.lineTo(x - 5 * sc, by + 6 * sc); c.closePath(); c.fill();
+      // 躯干 + 破衣服
+      c.save(); c.translate(lean * 0.4, 0); c.rotate(ca * 0.12);
+      rrect(-7.5, by - 7, 15, 15, 5, skin, 2);
+      c.fillStyle = cloth; c.beginPath(); c.moveTo(-7.5, by - 4); c.lineTo(7.5, by - 5); c.lineTo(7.5, by + 4); c.lineTo(4, by + 7); c.lineTo(2, by + 3); c.lineTo(-1, by + 8); c.lineTo(-4, by + 4); c.lineTo(-7.5, by + 7); c.closePath(); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.3; c.stroke();
+      c.fillStyle = 'rgba(120,20,15,0.65)'; c.beginPath(); c.arc(-2 + (e.seed % 4), by - 1, 2.6, 0, 6.29); c.arc(3, by + 3, 1.6, 0, 6.29); c.fill();
+      if (e.type === 'brute') { blob(-8, by - 5, 5, skin, 1.8); blob(8, by - 5, 5, skin, 1.8); }
+      c.restore();
     }
-    // 手臂向前伸
-    const reach = e.attackT > 0 ? 1.4 : 1;
-    const armL = (e.type === 'brute' || e.type === 'thrower' ? 15 : 11) * sc * .7 * reach;
-    c.strokeStyle = col; c.lineWidth = (e.type === 'brute' ? 7 : e.type === 'thrower' ? 5 : 3);
-    c.beginPath();
-    c.moveTo(x - 4 * sc, by); c.lineTo(x - 4 * sc + Math.cos(a - 0.2) * armL, by + Math.sin(a - 0.2) * armL * .7 + walk);
-    c.moveTo(x + 4 * sc, by); c.lineTo(x + 4 * sc + Math.cos(a + 0.2) * armL, by + Math.sin(a + 0.2) * armL * .7 - walk);
-    c.stroke();
-    c.strokeStyle = INK; c.lineWidth = 1; c.stroke();
-    // 头
-    const hr = e.type === 'brute' ? 5.5 : 5;
-    const hx = x + Math.cos(e.tilt) * 1.5, hy = by - 9 * sc;
-    c.fillStyle = '#a49a84'; SK.circle(c, hx, hy, hr, rnd, .2, 9); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.3; c.stroke();
-    c.fillStyle = '#5a1a12'; c.fillRect(hx - 3, hy - 1, 2, 2); c.fillRect(hx + 1, hy - 1, 2, 2);
-    // 投掷者举着的东西
+    // 向前伸的手臂
+    const reach = e.attackT > 0 ? 1.45 : 1;
+    const armL = (e.type === 'brute' || e.type === 'thrower' ? 14 : 11) * reach;
+    const aw = e.type === 'brute' ? 6 : e.type === 'thrower' ? 5 : 3.4;
+    const sw = walk * 1.5;
+    if (!(e.type === 'thrower' && e.hold)) {
+      const lx = -5 + Math.cos(a - 0.25) * armL, ly = by - 3 + Math.sin(a - 0.25) * armL * 0.7 + sw;
+      const rx = 5 + Math.cos(a + 0.25) * armL, ry = by - 3 + Math.sin(a + 0.25) * armL * 0.7 - sw;
+      inkLine(-5, by - 4, lx, ly, aw, skin); inkLine(5, by - 4, rx, ry, aw, skin);
+      c.strokeStyle = INK; c.lineWidth = 1; c.beginPath(); for (const [px, py] of [[lx, ly], [rx, ry]]) for (let k = -1; k <= 1; k++) { c.moveTo(px, py); c.lineTo(px + Math.cos(a + k * 0.5) * 3, py + Math.sin(a + k * 0.5) * 3); } c.stroke();
+    } else {
+      inkLine(-5, by - 4, -7, by - 20, aw, skin); inkLine(5, by - 4, 7, by - 20, aw, skin);
+    }
+    // 头（耷拉、前探）
+    const hr = e.type === 'brute' ? 6 : e.type === 'bloater' ? 5.5 : 6.6;
+    const hx = lean * 1.2 + Math.cos(e.tilt || 0) * 1.2, hy = (e.type === 'bloater' ? by - 12 : by - 12) + Math.abs(ca) * 1.5;
+    blob(hx, hy, hr, U.shade(skin, 1.12), 1.9);
+    c.fillStyle = 'rgba(40,30,20,0.55)'; c.beginPath(); c.arc(hx, hy - 1, hr, Math.PI * 1.05, Math.PI * 1.6); c.closePath(); c.fill();
+    if (!up) {
+      const ex = hx + ca * 2.2, ey = hy + 0.5 + Math.max(0, sa);
+      c.fillStyle = '#ffdf70'; c.beginPath(); c.arc(ex - 2.4, ey, 1.6, 0, 6.29); c.arc(ex + 2.4, ey, 1.6, 0, 6.29); c.fill();
+      c.fillStyle = '#d02010'; c.beginPath(); c.arc(ex - 2.4, ey, 0.9, 0, 6.29); c.arc(ex + 2.4, ey, 0.9, 0, 6.29); c.fill();
+      c.strokeStyle = '#3a1410'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(ex - 2.5, ey + 3.3); c.lineTo(ex - 0.8, ey + 2.6); c.lineTo(ex + 0.8, ey + 3.6); c.lineTo(ex + 2.5, ey + 2.8); c.stroke();
+    }
     if (e.type === 'thrower' && e.hold) {
       const hold = e.holdT > 0 ? 1 - e.holdT / 1.1 : 1;
-      c.fillStyle = e.hold.col; c.strokeStyle = INK; c.lineWidth = 1.5;
-      c.fillRect(x - 9, hy - 10 - hold * 8, 18, 9); c.strokeRect(x - 9, hy - 10 - hold * 8, 18, 9);
+      c.fillStyle = e.hold.col; c.strokeStyle = INK; c.lineWidth = 1.6;
+      c.beginPath(); c.roundRect(-10, hy - 14 - hold * 7, 20, 10, 2); c.fill(); c.stroke();
     }
-    // 触手鞭打
+    if (e.hitT > 0) { c.fillStyle = 'rgba(255,240,220,' + Math.min(.75, e.hitT * 4) + ')'; c.beginPath(); c.arc(0, by - 3, 13, 0, 6.29); c.fill(); }
+    c.restore();
+    const BY = y + by * sc, HY = y + hy * sc;
     if (e.type === 'tentacle' && e.lashT > 0) {
-      const p = e.lashPhase; // 0~1 伸出
+      const p = e.lashPhase;
       const tx = R.sx(e.lashX), ty = R.sy(e.lashY) - 10;
-      const ex = U.lerp(x, tx, p), ey = U.lerp(by, ty, p);
-      c.strokeStyle = '#6e4038'; c.lineWidth = 6; c.beginPath(); c.moveTo(x, by);
-      c.quadraticCurveTo((x + ex) / 2 + Math.sin(t * 20) * 8, (by + ey) / 2 - 12, ex, ey); c.stroke();
-      c.strokeStyle = INK; c.lineWidth = 1.2; c.stroke();
+      const ex = U.lerp(x, tx, p), ey = U.lerp(BY, ty, p);
+      const path = () => { c.beginPath(); c.moveTo(x, BY); c.quadraticCurveTo((x + ex) / 2 + Math.sin(t * 20) * 8, (BY + ey) / 2 - 12, ex, ey); };
+      c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = 8.5; path(); c.stroke(); c.strokeStyle = '#8a4a40'; c.lineWidth = 6; path(); c.stroke();
     }
-    if (e.windT > 0 && e.type === 'brute') { c.strokeStyle = 'rgba(190,40,30,0.8)'; c.lineWidth = 2; c.beginPath(); c.arc(x, by, 16, 0, 6.29); c.stroke(); }
-    if (e.windT > 0 && e.type === 'tentacle') { c.strokeStyle = 'rgba(190,40,30,0.6)'; c.lineWidth = 2; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(x, by); c.lineTo(R.sx(e.lashX), R.sy(e.lashY) - 10); c.stroke(); c.setLineDash([]); }
-    if (e.hitT > 0) { c.fillStyle = 'rgba(255,240,220,' + Math.min(.7, e.hitT * 4) + ')'; c.beginPath(); c.arc(x, by, 9 * sc, 0, 6.29); c.fill(); }
-    if (e.stunT > 0) { c.fillStyle = '#f3d08a'; c.font = '12px KaiTi'; c.fillText('晕', x - 6, hy - 10); }
-    // 血条(受伤后)
-    if (e.hp < e.maxhp && (def.hp >= 150)) {
-      c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(x - 14, hy - 14, 28, 4); c.fillStyle = '#c03a2a'; c.fillRect(x - 14, hy - 14, 28 * e.hp / e.maxhp, 4);
+    if (e.windT > 0 && e.type === 'brute') { c.strokeStyle = 'rgba(210,40,30,0.85)'; c.lineWidth = 2.5; c.beginPath(); c.arc(x, BY, 20, 0, 6.29); c.stroke(); }
+    if (e.windT > 0 && e.type === 'tentacle') { c.strokeStyle = 'rgba(210,40,30,0.7)'; c.lineWidth = 2.5; c.setLineDash([5, 4]); c.beginPath(); c.moveTo(x, BY); c.lineTo(R.sx(e.lashX), R.sy(e.lashY) - 10); c.stroke(); c.setLineDash([]); }
+    if (e.stunT > 0) { c.fillStyle = '#f3d08a'; c.font = 'bold 12px KaiTi'; c.textAlign = 'center'; c.fillText('晕', x, HY - 12); c.textAlign = 'left'; }
+    if (e.hp < e.maxhp) {
+      const bw = def.hp >= 150 ? 30 : 20;
+      c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(x - bw / 2, HY - 13 * sc, bw, 3.5); c.fillStyle = '#d0402a'; c.fillRect(x - bw / 2, HY - 13 * sc, bw * Math.max(0, e.hp) / e.maxhp, 3.5);
     }
     c.globalAlpha = 1;
   };
@@ -239,6 +318,7 @@
     const cam = R.cam;
     const shx = (Math.random() - .5) * cam.shake, shy = (Math.random() - .5) * cam.shake;
     cam.shake *= 0.88;
+    R.zoomOn();
     c.save(); c.translate(shx, shy);
     c.fillStyle = '#e6dabd'; c.fillRect(0, 0, W, H);
     const M = G.M, CH = M.CH, CPX = M.CPX;
@@ -324,24 +404,25 @@
     c.save(); c.globalCompositeOperation = 'multiply'; c.fillStyle = R.paperPat; c.fillRect(0, 0, W, H); c.restore();
     // 暗角
     const vg = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
-    vg.addColorStop(0, 'rgba(40,25,15,0)'); vg.addColorStop(1, 'rgba(40,25,15,0.45)');
+    vg.addColorStop(0, 'rgba(40,25,15,0)'); vg.addColorStop(1, 'rgba(40,25,15,0.32)');
     c.fillStyle = vg; c.fillRect(0, 0, W, H);
     // 低血量红晕
     if (P.hp / P.maxhp < 0.3) { c.fillStyle = 'rgba(160,20,10,' + (0.15 + Math.sin(t * 6) * 0.08) + ')'; c.fillRect(0, 0, W, H); }
     R.drawOffscreenMarkers(raid, t);
+    R.zoomOff();
     R.drawCrosshair(raid);
   };
 
   R.drawEntity = (e, t, raid) => {
     if (e.kind === 'player') {
       const L = e.equip;
-      const armorCol = { body_work: '#4a6a8a', body_leather: '#3a2a22', body_stab: '#2a3a4a', body_vest: '#3a4a3a' };
+      const armorCol = { body_work: '#3f74a8', body_leather: '#3a2a22', body_stab: '#2a3a4a', body_vest: '#3a4a3a' };
       const helmCol = { helm_delivery: '#e8c020', helm_moto: '#b8322a', helm_riot: '#2a3550' };
-      R.drawHuman(e, t, { body: L.body ? armorCol[L.body.id] : '#6a7a8a', skin: '#d6b08a', helmet: L.helmet ? helmCol[L.helmet.id] : null, hair: '#1a1410', bag: L.bag ? '#5a5048' : null, weapon: e.curWeapon() });
+      R.drawHuman(e, t, { body: L.body ? armorCol[L.body.id] : '#e8e2d2', pants: '#34405a', skin: '#e2b88e', helmet: L.helmet ? helmCol[L.helmet.id] : null, hair: '#1a1410', bag: L.bag ? '#8a5e34' : null, weapon: e.curWeapon() });
     } else if (e.kind === 'bandit') {
-      R.drawHuman(e, t, { body: '#3a4048', skin: '#c9a080', mask: '#a02a22', hair: '#111', weapon: e.weapon });
+      R.drawHuman(e, t, { body: '#3a4048', pants: '#2a2a2a', skin: '#c9a080', mask: '#a02a22', hair: '#111', weapon: e.weapon });
     } else if (e.kind === 'npc') {
-      R.drawHuman(e, t, { body: '#8a6a4a', skin: '#d6b08a', hair: '#222', weapon: null });
+      R.drawHuman(e, t, { body: '#c86a3a', pants: '#4a4038', skin: '#d6b08a', hair: '#222', weapon: null });
       c.fillStyle = '#fff3c8'; c.font = 'bold 13px KaiTi'; c.textAlign = 'center'; c.fillText('幸存者', R.sx(e.x), R.sy(e.y) - 34); c.textAlign = 'left';
     } else R.drawZombie(e, t);
   };
@@ -456,7 +537,8 @@
     const m = G.input.mouse, P = raid.player;
     const sp = P.currentSpread ? P.currentSpread() : 0.05;
     const d = U.dist(P.x, P.y, ...R.toWorld(m.x, m.y));
-    const rad = Math.max(6, Math.tan(sp) * d * TS);
+    const w = P.curWeapon && P.curWeapon(), isGun = w && G.D.items[w.id].type === 'gun';
+    const rad = isGun ? Math.max(7, Math.tan(sp) * d * TS * R.Z) : 9;
     c.strokeStyle = 'rgba(255,245,220,0.9)'; c.lineWidth = 1.5;
     c.beginPath(); c.arc(m.x, m.y, rad, 0, 6.29); c.stroke();
     c.beginPath(); c.moveTo(m.x - rad - 5, m.y); c.lineTo(m.x - rad + 2, m.y); c.moveTo(m.x + rad - 2, m.y); c.lineTo(m.x + rad + 5, m.y);
@@ -487,6 +569,7 @@
 
   // 全图(M键)
   R.drawBigMap = (raid) => {
+    R.zoomOn();
     const M = G.M, P = raid.player;
     const s = Math.min((H - 80) / M.h, (W - 80) / M.w);
     const ox = (W - M.w * s) / 2, oy = (H - M.h * s) / 2;
@@ -499,8 +582,9 @@
     for (const p of raid.specialContainers) if (!p.searched && p.marked) { c.fillStyle = '#d04a2a'; c.fillRect(ox + p.x * s - 5, oy + p.y * s - 5, 10, 10); c.fillText('空投', ox + p.x * s, oy + p.y * s - 8); }
     if (raid.npc && !raid.npc.rescued) { c.fillStyle = '#e0b020'; c.beginPath(); c.arc(ox + raid.npc.x * s, oy + raid.npc.y * s, 6, 0, 6.29); c.fill(); }
     c.fillStyle = '#c0302a'; c.beginPath(); c.arc(ox + P.x * s, oy + P.y * s, 6, 0, 6.29); c.fill(); c.strokeStyle = '#fff'; c.lineWidth = 2; c.stroke();
-    c.fillStyle = '#efe5cf'; c.font = '13px KaiTi'; c.fillText('南宁市 · 兴宁区/青秀区老城  ' + MAP_DATA.attribution + '  （M 关闭）', W / 2, oy + M.h * s + 22);
+    c.fillStyle = '#efe5cf'; c.font = '13px KaiTi'; c.fillText('南宁市 · 兴宁区/青秀区老城  ' + MAP_DATA.attribution + '  （点地图按钮或 M 关闭）', W / 2, oy + M.h * s + 22);
     c.textAlign = 'left';
+    R.zoomOff();
   };
 
   G.R = R;
