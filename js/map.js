@@ -240,16 +240,16 @@
   const HPX = [0, 28, 46, 66, 86];
   M.HPX = HPX;
   const COL = {
-    ground: '#e6dabd', road: '#a19c92', major: '#8f8b84', alley: '#cfc2a2', plaza: '#ddd0ae', grass: '#a9c07c', tree: '#90ad6a', water: '#79a6b4', rail: '#8a7a68',
+    ground: '#e9dcbb', road: '#8c8780', major: '#7b7671', alley: '#d4c39c', plaza: '#e3d2a6', grass: '#9cc266', tree: '#86b058', water: '#6aa6b8', rail: '#8a7a68',
   };
   const PAL = {
-    residential: ['#cfc7b8', '#bdb5a6', '#d8cfbf', '#c4b7a5'],
-    village: ['#cbbba0', '#b9a688', '#d6c7aa', '#c7aa92', '#bfb3a3'],
-    shop: ['#c9a383', '#b9967c', '#d0b08c'],
-    restaurant: ['#c99a78'], convenience: ['#a9bfa0'], pharmacy: ['#a8c4a8'], hardware: ['#b0a080'],
-    mall: ['#9fb3c0', '#a9bcc6', '#b3b0a6'], office: ['#a9b8c4', '#9eacb8', '#b8c0c4'], hospital: ['#e4e2d8'],
-    gov: ['#cbb89c', '#c4ae90'], police: ['#a8b8d0'], culture: ['#b89c7a', '#c3a37f'], temple: ['#a8463a'], hotel: ['#d4c0a0', '#c8b49a'],
-    bank: ['#c7c0b0'], parking: ['#a8a8a0'], school: ['#d8c090'], market: ['#b0a090'], warehouse: ['#a7a39a', '#9ea6a6'],
+    residential: ['#ece3cf', '#e0d6bf', '#f1e9d6', '#dccfb4', '#d4dcc6', '#e8d2c0'],
+    village: ['#cd7d5c', '#bd6a4c', '#dcb68c', '#cfc6b2', '#b0bea2', '#d99a6a'],
+    shop: ['#e0a67a', '#d4936c', '#e8bf8c'],
+    restaurant: ['#e09a6c'], convenience: ['#a8cfa0'], pharmacy: ['#a6d0b0'], hardware: ['#c6aa78'],
+    mall: ['#8fb8cf', '#a6c6d2', '#cfc4a6'], office: ['#9cbcd2', '#8fb2c8', '#b4c8d6'], hospital: ['#f2f0e8'],
+    gov: ['#dcc29a', '#d4b68c'], police: ['#9fbce0'], culture: ['#c89c6c', '#d4a874'], temple: ['#b8463a'], hotel: ['#e2c6a0', '#d6b894'],
+    bank: ['#d8cfba'], parking: ['#b4b2aa'], school: ['#e6c88c'], market: ['#5f9fae', '#c8a070'], warehouse: ['#8fa8b8', '#a8b4b0'],
   };
   M.signText = (b, rnd) => {
     if (b.n && b.n.length) return b.n.replace(/广西壮族自治区/, '自治区').slice(0, 10);
@@ -286,10 +286,20 @@
         if (g.tiles.includes(M.tile(x, y))) list.push([(x - x0) * TS + 16, (y - y0) * TS + 16, M.tile(x, y)]);
       }
       if (!list.length) continue;
-      c.fillStyle = g.ink;
-      c.beginPath(); for (const p of list) { const rr = 20 + (U.hash(p[0] + x0, p[1] + y0, 3) - .5) * 2; c.moveTo(p[0] + rr, p[1]); c.arc(p[0], p[1], rr, 0, 6.29); } c.fill();
-      c.fillStyle = g.col;
-      c.beginPath(); for (const p of list) { c.rect(p[0] - 16, p[1] - 16, 32, 32); c.moveTo(p[0] + 18, p[1]); c.arc(p[0], p[1], 18, 0, 6.29); } c.fill();
+      const organic = g.tiles[0] === T.GRASS || g.tiles[0] === T.WATER;
+      if (organic) {
+        c.fillStyle = g.ink;
+        c.beginPath(); for (const p of list) { const rr = 20 + (U.hash(p[0] + x0, p[1] + y0, 3) - .5) * 2; c.moveTo(p[0] + rr, p[1]); c.arc(p[0], p[1], rr, 0, 6.29); } c.fill();
+        c.fillStyle = g.col;
+        c.beginPath(); for (const p of list) { c.rect(p[0] - 16, p[1] - 16, 32, 32); c.moveTo(p[0] + 18, p[1]); c.arc(p[0], p[1], 18, 0, 6.29); } c.fill();
+      } else {
+        // 硬质路面：直边 + 路缘石
+        c.fillStyle = g.tiles[0] === T.ROAD ? '#cfc4ae' : g.ink;
+        c.beginPath(); for (const p of list) c.rect(p[0] - 19, p[1] - 19, 38, 38); c.fill();
+        if (g.tiles[0] === T.ROAD) { c.fillStyle = '#5a5650'; c.beginPath(); for (const p of list) c.rect(p[0] - 17, p[1] - 17, 34, 34); c.fill(); }
+        c.fillStyle = g.col;
+        c.beginPath(); for (const p of list) c.rect(p[0] - 16, p[1] - 16, 32, 32); c.fill();
+      }
       if (g.tiles[0] === T.ROAD) { // 主干道颜色稍深
         c.fillStyle = COL.major;
         c.beginPath(); for (const p of list) if (p[2] === T.MAJOR) c.rect(p[0] - 16, p[1] - 16, 32, 32); c.fill();
@@ -307,6 +317,14 @@
         for (let k = 0; k < 3; k++) { const xx = X + rnd() * 28, yy = Y + rnd() * 28; c.moveTo(xx, yy); c.lineTo(xx + 2, yy - 4); c.lineTo(xx + 4, yy); }
         c.stroke();
       } else if (t === T.ROAD || t === T.MAJOR) {
+        c.fillStyle = 'rgba(30,28,26,0.12)'; for (let k = 0; k < 6; k++) c.fillRect(X + rnd() * 31, Y + rnd() * 31, 1.5, 1.5);
+        if (t === T.MAJOR) { // 车道虚线：沿主干道方向
+          const mE = M.tile(x + 1, y) === T.MAJOR && M.tile(x - 1, y) === T.MAJOR, mS = M.tile(x, y + 1) === T.MAJOR && M.tile(x, y - 1) === T.MAJOR;
+          const edgeN = M.tile(x, y - 1) !== T.MAJOR || M.tile(x, y - 2) !== T.MAJOR, edgeW = M.tile(x - 1, y) !== T.MAJOR || M.tile(x - 2, y) !== T.MAJOR;
+          c.fillStyle = 'rgba(240,235,215,0.55)';
+          if (mE && !mS && (y % 3 === 0) && !edgeN && x % 2 === 0) c.fillRect(X + 4, Y + 15, 20, 2.5);
+          else if (mS && !mE && (x % 3 === 0) && !edgeW && y % 2 === 0) c.fillRect(X + 15, Y + 4, 2.5, 20);
+        }
         if (hv < 0.06) { c.strokeStyle = 'rgba(40,36,32,0.35)'; c.lineWidth = 1; c.beginPath(); SK.line(c, X + rnd() * 30, Y + rnd() * 30, X + rnd() * 30, Y + rnd() * 30, rnd, 3); c.stroke(); }
         if (hv > 0.995) { c.fillStyle = '#6a665e'; c.beginPath(); c.arc(X + 16, Y + 16, 6, 0, 6.29); c.fill(); c.strokeStyle = '#3a3630'; c.stroke(); }
         if (hv > 0.97 && hv < 0.975) { c.fillStyle = 'rgba(110,30,25,0.35)'; SK.circle(c, X + 16, Y + 16, 9 + rnd() * 8, rnd, .5); c.fill(); }
@@ -358,7 +376,7 @@
         const sameN = M.bidAt(x, y - 1) === b, sameS = M.bidAt(x, y + 1) === b, sameW = M.bidAt(x - 1, y) === b, sameE = M.bidAt(x + 1, y) === b;
         if (!sameS) {
           // 南立面
-          const wall = U.shade(roof, 0.72);
+          const wall = U.shade(roof, 0.8);
           c.fillStyle = wall; c.fillRect(X, Y + TS - h, TS, h);
           const floors = Math.floor((h - 4) / 12);
           const glass = B.k === 'mall' || B.k === 'office';
@@ -367,8 +385,13 @@
             if (glass) { c.fillStyle = night ? 'rgba(30,40,50,0.8)' : 'rgba(80,110,130,0.55)'; c.fillRect(X + 1, wy, TS - 2, 8); continue; }
             for (const wx of [X + 5, X + 19]) {
               const lit = night && U.hash(x, y + f, wx) < 0.06;
-              c.fillStyle = lit ? '#f2d27a' : (U.hash(x, f, wx) < 0.2 ? '#2a2622' : '#4c4842');
+              const dk = U.hash(x, f, wx) < 0.18;
+              c.fillStyle = lit ? '#f2d27a' : (dk ? '#2a2622' : '#557a92');
               c.fillRect(wx, wy, 8, 7);
+              if (!lit && !dk) { c.fillStyle = 'rgba(220,240,255,0.45)'; c.fillRect(wx + 1, wy + 1, 2, 5); }
+              c.strokeStyle = 'rgba(40,30,20,0.6)'; c.lineWidth = 0.8; c.strokeRect(wx, wy, 8, 7);
+              if (!night && f > 0 && U.hash(x, f, wx + 3) < 0.07) { c.fillStyle = '#ecebe4'; c.fillRect(wx - 1, wy + 7, 10, 4); c.strokeStyle = 'rgba(40,30,20,0.7)'; c.strokeRect(wx - 1, wy + 7, 10, 4); }
+              else if (!night && U.hash(x, f, wx + 7) < 0.06) { const cl = ['#d84a3a', '#3a7ac8', '#e8c040', '#f0f0f0'][Math.floor(U.hash(x, f, wx + 9) * 4)]; c.fillStyle = cl; c.fillRect(wx + 1, wy + 7, 3, 4); c.fillRect(wx + 5, wy + 7, 2.5, 3); }
               if (B.k === 'village' || B.k === 'residential') { // 防盗网
                 c.strokeStyle = 'rgba(30,25,20,0.7)'; c.lineWidth = 1; c.beginPath();
                 c.moveTo(wx + 2.5, wy - 1); c.lineTo(wx + 2.5, wy + 8); c.moveTo(wx + 5.5, wy - 1); c.lineTo(wx + 5.5, wy + 8); c.stroke();
@@ -403,7 +426,7 @@
         // 屋顶
         const RY = Y - h;
         c.fillStyle = roof; c.fillRect(X, RY, TS + 0.5, TS + 0.5);
-        { const wv = U.hash(x, y, 77); if (wv < 0.5) { c.fillStyle = wv < 0.25 ? 'rgba(255,250,235,0.10)' : 'rgba(50,35,20,0.07)'; c.beginPath(); c.arc(X + 16 + (wv - .25) * 30, RY + 16, 12 + wv * 16, 0, 6.29); c.save(); c.clip(); c.fillRect(X, RY, TS, TS); c.restore(); } }
+        { const wv = U.hash(x, y, 77); if (wv < 0.18) { c.fillStyle = wv < 0.09 ? 'rgba(255,250,235,0.06)' : 'rgba(50,35,20,0.04)'; c.beginPath(); c.arc(X + 16 + (wv - .25) * 30, RY + 16, 12 + wv * 16, 0, 6.29); c.save(); c.clip(); c.fillRect(X, RY, TS, TS); c.restore(); } }
         if (B.k === 'warehouse' || B.k === 'market') { // 铁皮瓦楞
           c.strokeStyle = 'rgba(60,60,60,0.25)'; c.lineWidth = 1; c.beginPath(); for (let k = 2; k < TS; k += 5) { c.moveTo(X + k, RY); c.lineTo(X + k, RY + TS); } c.stroke();
         } else if (U.hash(b, 0, 9) < 0.5) {
