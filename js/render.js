@@ -17,7 +17,7 @@
   R.resize = () => {
     cv.width = window.innerWidth; cv.height = window.innerHeight;
     // 镜头放大：人物和场景都画得更大更清楚
-    R.Z = U.clamp(window.innerHeight / 470, 1.4, 2.4);
+    R.Z = U.clamp(window.innerHeight / 600, 1.1, 2.0);
     W = Math.ceil(cv.width / R.Z); H = Math.ceil(cv.height / R.Z);
     bcv.width = W; bcv.height = H; lcv.width = W; lcv.height = H;
     R.W = W; R.H = H;
@@ -345,39 +345,27 @@
         c.beginPath(); c.ellipse(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.6, 6, 10 + Math.sin(t * 12 + k) * 3, 0, 0, 6.29); c.fill();
       }
     }
-    // 道具 & 门
+    // 道具
     const near = M.nearContainers(P.x, P.y, 26);
-    for (const p of near) {
-      if (p.type === 'door') { if (!p.searched && U.d2(P.x, P.y, p.x, p.y) < 36) R.searchMark(R.sx(p.x), R.sy(p.y) - 8, t); }
-      else R.drawProp(p, t, U.d2(P.x, P.y, p.x, p.y) < 36);
-    }
+    for (const p of near) if (p.type !== 'door') R.drawProp(p, t, U.d2(P.x, P.y, p.x, p.y) < 36);
     for (const p of raid.specialContainers) { if (p.type === 'airdrop') R.drawAirdrop(p, t); }
     // 撤离点
     for (const ex of raid.extracts) R.drawExtract(ex, t, raid);
-    // 实体
+    // 投射物(低空)
+    for (const p of raid.projectiles) if (!p.arc) R.drawProjectile(p, t);
+    // 行道树 + 高楼
+    G.C.drawTrees(c);
+    G.C.draw(c, raid.night, t);
+    // 实体：被楼挡住的只画半透明剪影
     const ents = raid.visibleEntities;
     ents.sort((a, b) => a.y - b.y);
-    for (const e of ents) R.drawEntity(e, t, raid);
-    // 投射物(低空)
-    for (const p of raid.projectiles) R.drawProjectile(p, t);
-    // 建筑层
-    bc.clearRect(0, 0, W, H);
-    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
-      if (cx < 0 || cy < 0 || cx * CH >= M.w || cy * CH >= M.h) continue;
-      bc.drawImage(M.getBuild(cx, cy, raid.night), Math.round(R.sx(cx * CH)), Math.round(R.sy(cy * CH)) - M.BTOP);
-    }
-    // 玩家附近挖空(透视)
-    const px = R.sx(P.x), py = R.sy(P.y) - 12;
-    bc.save(); bc.globalCompositeOperation = 'destination-out';
-    const g = bc.createRadialGradient(px, py, 20, px, py, 105);
-    g.addColorStop(0, 'rgba(0,0,0,0.9)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-    bc.fillStyle = g; bc.fillRect(px - 110, py - 110, 220, 220); bc.restore();
-    c.drawImage(bcv, 0, 0);
-    // 紧贴建筑南侧的实体需画在建筑前
     for (const e of ents) {
-      const fx = Math.floor(e.x), fy = Math.floor(e.y);
-      if (M.tile(fx, fy - 1) === M.T.BUILD || M.treeSet.has((fy - 1) * M.w + fx) || M.tile(fx, fy) === M.T.BUILD) R.drawEntity(e, t, raid);
+      const occ = e.kind !== 'player' && G.C.occluded(e.x, e.y);
+      if (occ) { c.globalAlpha = 0.28; R.drawEntity(e, t, raid); c.globalAlpha = 1; }
+      else R.drawEntity(e, t, raid);
     }
+    // 门口的搜刮提示
+    for (const p of near) if (p.type === 'door' && !p.searched && U.d2(P.x, P.y, p.x, p.y) < 36) R.searchMark(R.sx(p.x), R.sy(p.y) - 8, t);
     // 空中投射物
     for (const p of raid.projectiles) if (p.arc) R.drawProjectile(p, t, true);
     // 弹道 / 粒子
@@ -724,6 +712,172 @@
     const x = R.sx(p.x), y = R.sy(p.y);
     drawShadow(x, y, 18, 5); sprite('p_airdrop', x, y + 4, 30);
     if (!p.searched) { c.fillStyle = 'rgba(230,60,40,' + (0.4 + Math.sin(t * 6) * .3) + ')'; c.beginPath(); c.arc(x, y - 38, 5, 0, 6.29); c.fill(); }
+  };
+
+  // ================= 骨骼动画版角色 =================
+  const RIGH = { player: 64, bandit: 64, npc: 60, walker: 64, runner: 64, tentacle: 68, thrower: 72, brute: 104 };
+  const ease = (q) => q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+  function wepOf(w) {
+    if (!w || w.id === 'fist') return null;
+    const im = IMG()['w_' + w.id]; if (!im) return null;
+    const L = (WLEN[w.id] || 20) * 1.3; const d = G.D.items[w.id];
+    return { img: im, L, H: im.height * L / im.width, piv: d.type === 'gun' ? 0.3 : 0.1, d };
+  }
+  function armAim(pose, al, twoHand, e) {
+    const aArm = Math.PI / 2 - al;
+    pose.uaF = aArm - 0.2; pose.faF = 0.2;
+    if (twoHand) { pose.uaB = aArm - 0.45; pose.faB = 0.6; }
+    if (e.fireCd > 0 && e.kind === 'player') pose.uaF -= 0.1;
+  }
+  R.drawHuman = (e, t, opts) => {
+    const rig = opts.rig || 'player';
+    if (!G.RIG.has(rig)) return;
+    const x = R.sx(e.x), y = R.sy(e.y), Hh = RIGH[rig] || 64;
+    const flip = Math.cos(e.aim) < 0;
+    const al = flip ? Math.PI - e.aim : e.aim; // 本地朝右的瞄准角
+    const pose = {};
+    const ph = e.walkT * (e.sprinting ? 13 : 11);
+    if (e.moving) G.RIG.walk(ph, 1, pose); else G.RIG.idle(t + (e.seed || 0), pose);
+    const wp = wepOf(opts.weapon);
+    const white = e.hitT > 0 ? e.hitT * 3 : 0;
+    drawShadow(x, y, 15, 5);
+    if (e.rollT > 0) {
+      const q = 1 - e.rollT / 0.32;
+      Object.assign(pose, { thF: 1.7, shF: -2.3, thB: 1.4, shB: -2.1, uaF: 1.3, faF: 1.6, uaB: 1.0, faB: 1.6, crouch: 0.75, lean: 0.6, head: 0.5 });
+      c.save(); c.translate(x, y - Hh * 0.32); c.rotate(q * Math.PI * 2 * (flip ? -1 : 1));
+      G.RIG.draw(c, rig, 0, Hh * 0.32, Hh * 0.95, pose, flip, white); c.restore();
+      return;
+    }
+    if (wp) {
+      const d = wp.d; pose.wep = Object.assign({}, wp);
+      if (d.type === 'gun' || d.chainsaw) {
+        armAim(pose, al, d.twoHand !== false && wp.L > 26, e);
+        pose.wep.rel = Math.PI / 2 - 0.2;
+        pose.head = (Math.PI / 2 - (Math.PI / 2 - al)) * 0.25;
+        if (d.chainsaw) pose.wep.rel += (Math.random() - 0.5) * 0.06;
+      } else if (e.swingT > 0) { // 劈砍：举过头顶 → 狠狠劈下
+        const q = 1 - e.swingT / e.swingDur, sd = e.swingSide || 1;
+        const aArm = Math.PI / 2 - al;
+        const k = q < 0.18 ? -q / 0.18 * 0.25 : ease((q - 0.18) / 0.82);
+        if (sd > 0) { pose.uaF = aArm + 1.7 - 2.9 * k; pose.faF = 0.5 - 0.4 * k; }
+        else { pose.uaF = aArm - 1.0 + 2.4 * k; pose.faF = 0.2 + 0.3 * k; }
+        pose.uaB = -0.3 + 0.6 * k; pose.faB = 0.6;
+        pose.wep.rel = Math.PI / 2 - 0.35;
+        pose.lean = 0.12 + 0.3 * Math.sin(Math.min(1, q) * Math.PI);
+        pose.thF = 0.45; pose.shF = -0.2; pose.thB = -0.35; pose.shB = -0.3; pose.bob = 0;
+        pose.head = 0.15;
+      } else { // 持刀戒备
+        pose.uaF = 0.55 + (pose.uaF || 0) * 0.3; pose.faF = 1.0; pose.wep.rel = 0.35;
+      }
+    } else if (rig === 'npc' && !e.moving && !e.rescued) { pose.uaF = 2.7 + Math.sin(t * 9) * 0.35; pose.faF = 0.3; }
+    else if (opts.weapon && opts.weapon.id === 'fist' && e.swingT > 0) { const q = 1 - e.swingT / e.swingDur; armAim(pose, al, false, e); pose.uaF -= Math.sin(q * Math.PI) * 0.0; pose.faF = 1.2 * (1 - Math.sin(q * Math.PI)); pose.lean = 0.25 * Math.sin(q * Math.PI); }
+    if (e.hitT > 0) { pose.lean = (pose.lean || 0) - e.hitT * 2.2; pose.head = (pose.head || 0) - e.hitT * 2; }
+    c.save(); c.translate(x, y); drawSwing(e, -Hh * 0.45); c.restore();
+    G.RIG.draw(c, rig, x, y, Hh, pose, flip, white);
+    if (opts.label) { c.font = 'bold 12px KaiTi, serif'; c.textAlign = 'center'; c.fillStyle = 'rgba(0,0,0,.6)'; c.fillText(opts.label, x + 1, y - Hh - 5); c.fillStyle = '#fff3c8'; c.fillText(opts.label, x, y - Hh - 6); c.textAlign = 'left'; }
+  };
+
+  const drawZombieSprite = R.drawZombie;
+  function zombiePose(e, t) {
+    const fast = e.type === 'runner';
+    const ph = e.walkT * (fast ? 12 : 6.5) + (e.seed % 7);
+    const pose = {};
+    const amp = e.moving ? (fast ? 1.15 : e.type === 'brute' ? 0.55 : 0.6) : 0.12;
+    G.RIG.walk(ph, amp, pose);
+    const sw = Math.sin(ph * 0.5 + (e.seed % 5));
+    if (e.type === 'walker' || e.type === 'tentacle') {
+      pose.thB *= 0.55; // 拖着一条腿
+      pose.uaF = 1.35 + 0.15 * sw; pose.faF = 0.12; pose.uaB = 1.15 - 0.15 * sw; pose.faB = 0.2;
+      pose.lean = 0.25; pose.head = 0.3 + 0.12 * Math.sin(ph * 0.7);
+      if (e.type === 'tentacle') { pose.uaF = 0.3 + 0.1 * sw; pose.uaB = 0.2; pose.faF = 0.4; }
+    } else if (fast) {
+      pose.uaF *= 1.8; pose.uaB *= 1.8; pose.faF = 1.2; pose.faB = 1.2; pose.lean = 0.5; pose.head = 0.35;
+    } else if (e.type === 'brute') {
+      pose.uaF = 0.2 + 0.25 * Math.sin(ph); pose.uaB = 0.2 - 0.25 * Math.sin(ph); pose.faF = 0.25; pose.faB = 0.25; pose.lean = 0.3; pose.head = 0.2;
+      if (e.windT > 0) { pose.uaF = 2.9; pose.uaB = 2.7; pose.faF = 0.5; pose.faB = 0.5; pose.lean = -0.2; pose.head = -0.3; }
+    } else if (e.type === 'thrower') {
+      pose.uaF = 0.15 + 0.2 * Math.sin(ph); pose.faF = 0.2; pose.uaB = 0.4; pose.faB = 0.5; pose.lean = 0.2;
+      if (e.hold) { const k = e.holdT > 0 ? 1 - e.holdT / 1.1 : 1; pose.uaF = 0.2 + 2.7 * k; pose.faF = 0.4; pose.lean = -0.15 * k; }
+    }
+    if (e.attackT > 0) {
+      const dur = e.type === 'brute' ? 0.55 : 0.35, q = 1 - e.attackT / dur;
+      const k = ease(Math.min(1, q));
+      if (e.type === 'brute') { pose.uaF = 2.9 - 2.5 * k; pose.uaB = 2.7 - 2.4 * k; pose.lean = -0.2 + 0.7 * k; }
+      else if (e.type === 'thrower') { pose.uaF = 2.8 - 2.3 * k; pose.lean = 0.45 * k; }
+      else { pose.uaF = 2.4 - 1.9 * k; pose.faF = 0.6 - 0.5 * k; pose.uaB = 2.0 - 1.4 * k; pose.lean = 0.2 + 0.4 * k; pose.thF = 0.5; }
+    }
+    if (e.stunT > 0) { pose.lean = -0.1; pose.head = Math.sin(t * 6) * 0.3; pose.uaF = 0.1; pose.uaB = 0.05; }
+    if (e.hitT > 0) { pose.lean = (pose.lean || 0) - e.hitT * 3; pose.head = (pose.head || 0) - e.hitT * 3; }
+    return pose;
+  }
+  R.drawZombie = (e, t) => {
+    if (!G.RIG.has(e.type)) { // 爬行者、肿胀者：整图 + 形变动画
+      const x = R.sx(e.x), y = R.sy(e.y);
+      if (e.type === 'crawler') {
+        const ph = e.walkT * 12, k = Math.sin(ph);
+        c.globalAlpha = e.hidden ? 0.35 : 1; drawShadow(x, y, 16, 5);
+        sprite('z_crawler', x + k * 1.5, y + 2, 30 * (1 + 0.06 * Math.max(0, k)), { flip: Math.cos(e.face) < 0, rot: k * 0.06, sx: 1 + 0.1 * k, sy: 1 - 0.06 * k, white: e.hitT > 0 ? e.hitT * 4 : 0 });
+        c.globalAlpha = 1;
+        if (e.hp < e.maxhp) { c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(x - 10, y - 34, 20, 3.5); c.fillStyle = '#d0402a'; c.fillRect(x - 10, y - 34, 20 * Math.max(0, e.hp) / e.maxhp, 3.5); }
+        return;
+      }
+      return drawZombieSprite(e, t);
+    }
+    const def = G.D.enemies[e.type];
+    const x = R.sx(e.x), y = R.sy(e.y);
+    const Hh = (RIGH[e.type] || 64) * (0.94 + ((e.seed || 7) % 13) / 100);
+    const flip = Math.cos(e.face) < 0;
+    drawShadow(x, y, e.type === 'brute' ? 26 : 15, e.type === 'brute' ? 8 : 5);
+    G.RIG.draw(c, e.type, x, y, Hh, zombiePose(e, t), flip, e.hitT > 0 ? e.hitT * 4 : 0);
+    const BY = y - Hh * 0.55, HY = y - Hh;
+    if (e.type === 'thrower' && e.hold) {
+      const k = e.holdT > 0 ? 1 - e.holdT / 1.1 : 1;
+      c.fillStyle = e.hold.col; c.strokeStyle = INK; c.lineWidth = 2;
+      c.beginPath(); c.roundRect(x - 14 + (flip ? -6 : 6), HY - 12 - k * 6, 28, 13, 3); c.fill(); c.stroke();
+    }
+    if (e.type === 'tentacle') { // 背后触手常态蠕动
+      for (let i = 0; i < 3; i++) {
+        const bx = x + (flip ? 6 : -6), by = BY - 6 + i * 4, a = (flip ? -0.6 : -2.5) + Math.sin(t * 3 + i * 2) * 0.4 + i * 0.3 * (flip ? 1 : -1);
+        c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = 5; c.beginPath(); c.moveTo(bx, by); c.quadraticCurveTo(bx + Math.cos(a) * 10, by + Math.sin(a) * 14 - 6, bx + Math.cos(a + 0.5) * 18, by + Math.sin(a + 0.5) * 18 - 4); c.stroke();
+        c.strokeStyle = '#7a2a28'; c.lineWidth = 3; c.stroke();
+      }
+    }
+    if (e.type === 'tentacle' && e.lashT > 0) {
+      const p = e.lashPhase, tx = R.sx(e.lashX), ty = R.sy(e.lashY) - 10;
+      const ex = U.lerp(x, tx, p), ey = U.lerp(BY, ty, p);
+      const path = () => { c.beginPath(); c.moveTo(x, BY); c.quadraticCurveTo((x + ex) / 2 + Math.sin(t * 20) * 8, (BY + ey) / 2 - 12, ex, ey); };
+      c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = 8.5; path(); c.stroke(); c.strokeStyle = '#7a2a28'; c.lineWidth = 6; path(); c.stroke();
+    }
+    if (e.windT > 0 && e.type === 'brute') { c.strokeStyle = 'rgba(210,40,30,0.85)'; c.lineWidth = 2.5; c.beginPath(); c.ellipse(x, y, 30, 11, 0, 0, 6.29); c.stroke(); }
+    if (e.windT > 0 && e.type === 'tentacle') { c.strokeStyle = 'rgba(210,40,30,0.7)'; c.lineWidth = 2.5; c.setLineDash([5, 4]); c.beginPath(); c.moveTo(x, BY); c.lineTo(R.sx(e.lashX), R.sy(e.lashY) - 10); c.stroke(); c.setLineDash([]); }
+    if (e.stunT > 0) { c.fillStyle = '#f3d08a'; c.font = 'bold 12px KaiTi'; c.textAlign = 'center'; c.fillText('晕', x, HY - 8); c.textAlign = 'left'; }
+    if (e.hp < e.maxhp) {
+      const bw = def.hp >= 150 ? 30 : 20;
+      c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(x - bw / 2, HY - 5, bw, 3.5); c.fillStyle = '#d0402a'; c.fillRect(x - bw / 2, HY - 5, bw * Math.max(0, e.hp) / e.maxhp, 3.5);
+    }
+  };
+  R.drawEntity = (e, t, raid) => {
+    if (e.kind === 'player') R.drawHuman(e, t, { rig: 'player', weapon: e.curWeapon() });
+    else if (e.kind === 'bandit') R.drawHuman(e, t, { rig: 'bandit', weapon: e.weapon });
+    else if (e.kind === 'npc') R.drawHuman(e, t, { rig: 'npc', weapon: null, label: '幸存者' });
+    else R.drawZombie(e, t);
+  };
+  const drawCorpseSprite = R.drawCorpse;
+  R.drawCorpse = (d) => {
+    if (!d.rig || !G.RIG.has(d.rig)) return drawCorpseSprite(d);
+    const x = R.sx(d.x), y = R.sy(d.y);
+    const age = (performance.now() - (d.born || 0)) / 1000;
+    const q = d.born ? Math.min(1, age / 0.45) : 1;
+    const k = q < 1 ? q * q : 1; // 倒地加速
+    const flip = (d.seed || 0) % 2 === 0;
+    const Hh = (RIGH[d.rig] || 64);
+    c.fillStyle = 'rgba(95,18,14,' + (0.55 * Math.min(1, age / 1.5 + (d.born ? 0 : 1))) + ')';
+    c.beginPath(); c.ellipse(x + (flip ? -1 : 1) * Hh * 0.35, y + 2, Hh * 0.38 * Math.min(1, 0.3 + age / 2), Hh * 0.12, 0, 0, 6.29); c.fill();
+    const pose = { lay: Math.PI / 2 * k, thF: 0.25, shF: -0.3, thB: -0.1, shB: -0.5, uaF: 0.9 * k + 0.1, faF: 0.4, uaB: 1.6 * k, faB: 0.3, head: 0.4 * k, lean: 0 };
+    c.save(); c.globalAlpha = 0.95;
+    G.RIG.draw(c, d.rig, x, y, Hh, pose, flip, q < 1 ? (1 - q) * 0.6 : 0);
+    c.restore();
+    if (d.loot && !d.searched) R.searchMark(x, y - 16, performance.now() / 1000);
   };
 
   G.R = R;
