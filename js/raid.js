@@ -250,7 +250,7 @@
         if (src === 'player') { this.kills++; if (P.perk('p_butcher') && P.slot === 'melee') P.hp = Math.min(P.maxhp, P.hp + 3); }
       }
       if (e.type === 'bloater') this.explodeBile(e.x, e.y);
-      const corpse = { type: 'corpse', x: e.x, y: e.y, rot: Math.random() * 6.28, col: e.kind === 'bandit' ? '#3a4048' : e.col, seed: e.seed, size: e.type === 'brute' ? 1.8 : e.type === 'bloater' ? 1.4 : 1 };
+      const corpse = { type: 'corpse', x: e.x, y: e.y, rot: Math.random() * 6.28, col: e.kind === 'bandit' ? '#3a4048' : e.col, seed: e.seed, size: e.type === 'brute' ? 1.8 : e.type === 'bloater' ? 1.4 : 1, rig: e.kind === 'bandit' ? 'bandit' : e.type, born: performance.now() };
       // 掉落
       const items = [];
       const special = ['bloater', 'tentacle', 'thrower', 'brute'].includes(e.type);
@@ -399,7 +399,7 @@
       this.targets = this.targets.filter(t => !t.dead && (t.kind !== 'bandit' || t.hp > 0) && !t.gone);
       if (this.npc) {
         this.npc.update(dt);
-        if (this.npc.hp <= 0 && !this.npc.dead) { this.npc.dead = true; this.log('求救的幸存者没能撑住……'); this.decals.push({ type: 'corpse', x: this.npc.x, y: this.npc.y, rot: 1, col: '#8a6a4a', seed: 5 }); }
+        if (this.npc.hp <= 0 && !this.npc.dead) { this.npc.dead = true; this.log('求救的幸存者没能撑住……'); this.decals.push({ type: 'corpse', x: this.npc.x, y: this.npc.y, rot: 1, col: '#8a6a4a', seed: 5, rig: 'npc', born: performance.now() }); }
         if (this.npc.gone || this.npc.dead) { this.targets = this.targets.filter(t => t !== this.npc); if (this.npc.dead || this.npc.gone) this.npcDone = true; }
       }
       // 投射物
