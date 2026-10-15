@@ -587,5 +587,144 @@
     R.zoomOff();
   };
 
+
+  // ================= 手绘素材版渲染（覆盖上面的程序化画法） =================
+  const IMG = () => G.A.img;
+  const WLEN = { fruitknife: 17, melonknife: 27, woodstick: 32, cleaver: 19, pipe: 32, fireaxe: 30, hammer: 19, shovel: 30, machete: 27, baton: 23, chainsaw: 32, nailgun: 15,
+    pistol92: 15, revolver: 16, huntshot: 32, shotgun97: 31, smg05: 21, rifle95: 29, slingbow: 25 };
+  const SH = { player: 58, h_bandit: 58, h_npc: 55, z_walker: 58, z_runner: 58, z_tentacle: 68, z_thrower: 68, z_brute: 100, z_bloater: 78 };
+
+  function drawWeaponSpr(hx, hy, ang, w, e, t) {
+    if (!w || w.id === 'fist') return;
+    const d = G.D.items[w.id], im = IMG()['w_' + w.id]; if (!im) return;
+    let a = ang;
+    if (d.type === 'melee' && e.swingT > 0 && !d.chainsaw) { const p = 1 - e.swingT / e.swingDur, sd = e.swingSide || 1; a = ang - 1.3 * sd + p * 2.6 * sd; }
+    else if (d.type === 'melee' && !d.chainsaw) a = ang + (Math.cos(ang) >= 0 ? -0.6 : 0.6);
+    const L = (WLEN[w.id] || 20) * 1.3, H = im.height * L / im.width;
+    const piv = d.type === 'gun' ? 0.3 : 0.12;
+    c.save(); c.translate(hx, hy); c.rotate(a);
+    if (Math.cos(a) < 0) c.scale(1, -1);
+    if (d.type === 'gun' && e.fireCd > 0 && e.kind === 'player') c.translate(-1.5, 0); // 后坐
+    if (d.chainsaw) c.translate(Math.random() - 0.5, Math.random() - 0.5);
+    c.drawImage(im, -L * piv, -H * 0.5, L, H);
+    c.restore();
+  }
+
+  function sprite(name, x, y, h, opts = {}) {
+    const im = IMG()[name]; if (!im) return;
+    const w = im.width * h / im.height;
+    c.save(); c.translate(x, y);
+    if (opts.rot) c.rotate(opts.rot);
+    c.scale((opts.flip ? -1 : 1) * (opts.sx || 1), opts.sy || 1);
+    c.drawImage(im, -w / 2, -h, w, h);
+    if (opts.white > 0 && G.A.white[name]) { c.globalAlpha = Math.min(0.85, opts.white); c.drawImage(G.A.white[name], -w / 2, -h, w, h); c.globalAlpha = 1; }
+    c.restore();
+  }
+
+  R.drawHuman = (e, t, opts) => {
+    const x = R.sx(e.x), y = R.sy(e.y);
+    const name = opts.spr || 'player', h = SH[name] || 58;
+    const ph = e.walkT * 11;
+    const walk = e.moving ? Math.sin(ph) : 0;
+    const bob = e.moving ? Math.abs(Math.sin(ph)) * 2.2 : 0;
+    const breath = e.moving ? 1 : 1 + Math.sin(t * 2.4) * 0.015;
+    const ca = Math.cos(e.aim), sa = Math.sin(e.aim);
+    const flip = ca < 0;
+    drawShadow(x, y, 14, 5);
+    if (e.rollT > 0) {
+      const sp = (1 - e.rollT / 0.32) * Math.PI * 2 * (e.rollDx < 0 ? -1 : 1);
+      c.save(); c.translate(x, y - h * 0.4); c.rotate(sp); sprite(name, 0, h * 0.4, h * 0.85, { flip }); c.restore();
+      return;
+    }
+    const up = sa < -0.35;
+    const hx = x + ca * 11, hy = y - h * 0.42 + sa * 6 - bob;
+    c.save(); c.translate(x, y - bob); drawSwing(e, -h * 0.4); c.restore();
+    if (up) drawWeaponSpr(hx, hy, e.aim, opts.weapon, e, t);
+    sprite(name, x, y - bob, h, { flip, rot: walk * 0.07, sy: breath, white: e.hitT > 0 ? e.hitT * 3 : 0 });
+    if (!up) drawWeaponSpr(hx, hy, e.aim, opts.weapon, e, t);
+    if (opts.label) { c.font = 'bold 12px KaiTi, serif'; c.textAlign = 'center'; c.fillStyle = 'rgba(0,0,0,.6)'; c.fillText(opts.label, x + 1, y - h - 5); c.fillStyle = '#fff3c8'; c.fillText(opts.label, x, y - h - 6); c.textAlign = 'left'; }
+  };
+
+  R.drawZombie = (e, t) => {
+    const def = G.D.enemies[e.type];
+    const x = R.sx(e.x), y = R.sy(e.y);
+    const name = 'z_' + e.type;
+    const ca = Math.cos(e.face), flip = ca < 0;
+    const fast = e.type === 'runner' || e.type === 'crawler';
+    const ph = e.walkT * (fast ? 12 : 6);
+    const walk = Math.sin(ph);
+    const big = e.type === 'brute' ? 1.8 : e.type === 'bloater' ? 1.5 : e.type === 'thrower' || e.type === 'tentacle' ? 1.15 : 1;
+    const var1 = 0.94 + ((e.seed || 7) % 13) / 100; // 个体大小差异
+    c.globalAlpha = e.type === 'crawler' && e.hidden ? 0.35 : 1;
+    drawShadow(x, y, 12 * big, 4.6 * big);
+    const white = e.hitT > 0 ? e.hitT * 4 : 0;
+    let h;
+    if (e.type === 'crawler') {
+      h = 30 * var1;
+      sprite(name, x, y + 2, h, { flip, rot: walk * 0.04, white });
+    } else {
+      h = (SH[name] || 58) * var1;
+      const lunge = e.attackT > 0 ? 0.18 : 0;
+      const sway = walk * (e.type === 'brute' ? 0.05 : 0.09) + (flip ? -lunge : lunge);
+      const bob = Math.abs(walk) * (fast ? 2.5 : 1.5);
+      const puff = e.type === 'bloater' ? 1 + Math.sin(t * 2) * 0.03 : 1;
+      sprite(name, x, y - bob, h, { flip, rot: sway, sx: puff, sy: 1 / puff, white });
+    }
+    const BY = y - h * 0.55, HY = y - h;
+    if (e.type === 'thrower' && e.hold) {
+      const hold = e.holdT > 0 ? 1 - e.holdT / 1.1 : 1;
+      c.fillStyle = e.hold.col; c.strokeStyle = INK; c.lineWidth = 2;
+      c.beginPath(); c.roundRect(x - 13, HY - 10 - hold * 8, 26, 12, 3); c.fill(); c.stroke();
+      c.fillStyle = 'rgba(255,255,255,0.3)'; c.fillRect(x - 10, HY - 8 - hold * 8, 14, 2.5);
+    }
+    if (e.type === 'tentacle' && e.lashT > 0) {
+      const p = e.lashPhase;
+      const tx = R.sx(e.lashX), ty = R.sy(e.lashY) - 10;
+      const ex = U.lerp(x, tx, p), ey = U.lerp(BY, ty, p);
+      const path = () => { c.beginPath(); c.moveTo(x, BY); c.quadraticCurveTo((x + ex) / 2 + Math.sin(t * 20) * 8, (BY + ey) / 2 - 12, ex, ey); };
+      c.lineCap = 'round'; c.strokeStyle = INK; c.lineWidth = 8.5; path(); c.stroke(); c.strokeStyle = '#7a2a28'; c.lineWidth = 6; path(); c.stroke();
+      c.strokeStyle = 'rgba(255,160,150,0.4)'; c.lineWidth = 1.5; path(); c.stroke();
+    }
+    if (e.windT > 0 && e.type === 'brute') { c.strokeStyle = 'rgba(210,40,30,0.85)'; c.lineWidth = 2.5; c.beginPath(); c.ellipse(x, y, 26, 10, 0, 0, 6.29); c.stroke(); }
+    if (e.windT > 0 && e.type === 'tentacle') { c.strokeStyle = 'rgba(210,40,30,0.7)'; c.lineWidth = 2.5; c.setLineDash([5, 4]); c.beginPath(); c.moveTo(x, BY); c.lineTo(R.sx(e.lashX), R.sy(e.lashY) - 10); c.stroke(); c.setLineDash([]); }
+    if (e.stunT > 0) { c.fillStyle = '#f3d08a'; c.font = 'bold 12px KaiTi'; c.textAlign = 'center'; c.fillText('晕', x, HY - 6); c.textAlign = 'left'; }
+    if (e.hp < e.maxhp) {
+      const bw = def.hp >= 150 ? 30 : 20;
+      c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(x - bw / 2, HY - 4, bw, 3.5); c.fillStyle = '#d0402a'; c.fillRect(x - bw / 2, HY - 4, bw * Math.max(0, e.hp) / e.maxhp, 3.5);
+    }
+    c.globalAlpha = 1;
+  };
+
+  R.drawEntity = (e, t, raid) => {
+    if (e.kind === 'player') R.drawHuman(e, t, { spr: 'player', weapon: e.curWeapon() });
+    else if (e.kind === 'bandit') R.drawHuman(e, t, { spr: 'h_bandit', weapon: e.weapon });
+    else if (e.kind === 'npc') R.drawHuman(e, t, { spr: 'h_npc', weapon: null, label: '幸存者' });
+    else R.drawZombie(e, t);
+  };
+
+  R.drawCorpse = (d) => {
+    const x = R.sx(d.x), y = R.sy(d.y);
+    const im = IMG().corpse;
+    const s = d.size || 1;
+    if (im) { const w = 46 * s, h = im.height * w / im.width; c.save(); c.translate(x, y); if (d.rot > 3.14) c.scale(-1, 1); c.drawImage(im, -w / 2, -h / 2, w, h); c.restore(); }
+    if (d.loot && !d.searched) R.searchMark(x, y - 16, performance.now() / 1000);
+  };
+
+  R.drawProp = (p, t, near) => {
+    const x = R.sx(p.x), y = R.sy(p.y);
+    if (x < -80 || y < -80 || x > W + 80 || y > H + 80) return;
+    const flip = (p.seed || 1) % 2 === 0;
+    if (p.type === 'car') { drawShadow(x, y + 6, 34, 9); sprite('p_car', x, y + 12, 36, { flip }); if (p.color && p.color !== '#e8e4d8') { /* 不同车色用色调区分 */ } }
+    else if (p.type === 'ebike') { drawShadow(x, y, 14, 4); sprite('p_ebike', x, y + 2, 30, { flip }); }
+    else if (p.type === 'locker') { drawShadow(x, y + 1, 13, 4); sprite('p_locker', x, y + 3, 40); }
+    else if (p.type === 'pile') { if (!p.items || !p.items.length) return; drawShadow(x, y, 12, 4); sprite('p_pile', x, y + 3, 22); }
+    if (near && !p.searched) R.searchMark(x, y - (p.type === 'locker' ? 44 : 34), t);
+  };
+  R.drawAirdrop = (p, t) => {
+    const x = R.sx(p.x), y = R.sy(p.y);
+    drawShadow(x, y, 18, 5); sprite('p_airdrop', x, y + 4, 30);
+    if (!p.searched) { c.fillStyle = 'rgba(230,60,40,' + (0.4 + Math.sin(t * 6) * .3) + ')'; c.beginPath(); c.arc(x, y - 38, 5, 0, 6.29); c.fill(); }
+  };
+
   G.R = R;
 })();
