@@ -276,7 +276,7 @@
       { tiles: [T.PLAZA], col: pat('tex_sidewalk', 0.6) || COL.plaza, ink: '#8a7a5a', tint: 'rgba(240,230,200,0.25)' },
       { tiles: [T.ALLEY], col: pat('tex_roof_concrete', 0.35) || COL.alley, ink: '#7f705a', tint: 'rgba(120,100,70,0.12)' },
       { tiles: [T.RAIL], col: COL.rail, ink: '#4a3a2a' },
-      { tiles: [T.ROAD, T.MAJOR], col: pat('tex_asphalt', 0.5) || COL.road, ink: '#4a4640', tint: 'rgba(150,150,155,0.28)' },
+      { tiles: [T.ROAD, T.MAJOR], col: pat('tex_asphalt', 0.5) || COL.road, ink: '#4a4640', tint: 'rgba(160,160,165,0.38)' },
     ];
     for (const g of groups) {
       const list = [];
