@@ -113,7 +113,7 @@
 
   window.addEventListener('load', async () => {
     await G.A.ready;
-    G.M.init(); G.M.makeMiniBase(); G.R.init();
+    G.M.init(); G.C.init(); G.M.makeMiniBase(); G.R.init();
     G.UI.title();
     requestAnimationFrame(frame);
   });
