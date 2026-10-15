@@ -266,19 +266,17 @@
     const c = cv.getContext('2d');
     const rnd = U.rng(cx * 7919 + cy * 104729);
     const x0 = cx * CH, y0 = cy * CH;
-    c.fillStyle = COL.ground; c.fillRect(0, 0, CPX, CPX);
-    // 人行道地砖
-    c.strokeStyle = 'rgba(120,100,70,0.13)'; c.lineWidth = 1;
-    c.beginPath();
-    for (let i = 0; i <= CH; i++) { SK.line(c, i * TS, 0, i * TS, CPX, rnd, 0.8); SK.line(c, 0, i * TS, CPX, i * TS, rnd, 0.8); }
-    c.stroke();
+    const A = G.A, ox = -x0 * TS, oy = -y0 * TS;
+    const pat = (n, sc) => A.pattern(c, n, ox, oy, sc);
+    c.fillStyle = pat('tex_sidewalk', 0.42) || COL.ground; c.fillRect(0, 0, CPX, CPX);
+    c.fillStyle = 'rgba(225,212,182,0.42)'; c.fillRect(0, 0, CPX, CPX);
     const groups = [
-      { tiles: [T.GRASS, T.TREE], col: COL.grass, ink: '#5e7a40' },
-      { tiles: [T.WATER], col: COL.water, ink: '#3d6878' },
-      { tiles: [T.PLAZA], col: COL.plaza, ink: '#8a7a5a' },
-      { tiles: [T.ALLEY], col: COL.alley, ink: '#7f705a' },
+      { tiles: [T.GRASS, T.TREE], col: pat('tex_grass', 0.5) || COL.grass, ink: '#4e6a30' },
+      { tiles: [T.WATER], col: pat('tex_water', 0.7) || COL.water, ink: '#2d5868' },
+      { tiles: [T.PLAZA], col: pat('tex_sidewalk', 0.6) || COL.plaza, ink: '#8a7a5a', tint: 'rgba(240,230,200,0.25)' },
+      { tiles: [T.ALLEY], col: pat('tex_roof_concrete', 0.35) || COL.alley, ink: '#7f705a', tint: 'rgba(120,100,70,0.12)' },
       { tiles: [T.RAIL], col: COL.rail, ink: '#4a3a2a' },
-      { tiles: [T.ROAD, T.MAJOR], col: COL.road, ink: '#4a4640' },
+      { tiles: [T.ROAD, T.MAJOR], col: pat('tex_asphalt', 0.5) || COL.road, ink: '#4a4640', tint: 'rgba(150,150,155,0.28)' },
     ];
     for (const g of groups) {
       const list = [];
@@ -300,24 +298,17 @@
         c.fillStyle = g.col;
         c.beginPath(); for (const p of list) c.rect(p[0] - 16, p[1] - 16, 32, 32); c.fill();
       }
+      if (g.tint) { c.fillStyle = g.tint; c.beginPath(); for (const p of list) c.rect(p[0] - 16, p[1] - 16, 32, 32); c.fill(); }
       if (g.tiles[0] === T.ROAD) { // 主干道颜色稍深
-        c.fillStyle = COL.major;
+        c.fillStyle = 'rgba(30,30,35,0.18)';
         c.beginPath(); for (const p of list) if (p[2] === T.MAJOR) c.rect(p[0] - 16, p[1] - 16, 32, 32); c.fill();
       }
-      // 水彩晕染
-      for (const p of list) { const hv = U.hash(p[0] + x0 * 32, p[1] + y0 * 32, 41); if (hv < 0.3) { c.fillStyle = hv < 0.15 ? 'rgba(255,255,240,0.07)' : 'rgba(40,30,20,0.06)'; c.beginPath(); c.arc(p[0] + (hv - .15) * 40, p[1], 14 + hv * 20, 0, 6.29); c.fill(); } }
     }
     // 细节
     for (let y = y0; y < y0 + CH; y++) for (let x = x0; x < x0 + CH; x++) {
       const t = M.tile(x, y), X = (x - x0) * TS, Y = (y - y0) * TS, hv = U.hash(x, y, 5);
-      if (t === T.WATER) {
-        if (hv < 0.35) { c.strokeStyle = 'rgba(230,245,250,0.55)'; c.lineWidth = 1.2; c.beginPath(); const xx = X + rnd() * 20, yy = Y + rnd() * 26; c.moveTo(xx, yy); c.quadraticCurveTo(xx + 5, yy - 3, xx + 10, yy); c.stroke(); }
-      } else if (t === T.GRASS || t === T.TREE) {
-        c.strokeStyle = 'rgba(70,100,40,0.5)'; c.lineWidth = 1; c.beginPath();
-        for (let k = 0; k < 3; k++) { const xx = X + rnd() * 28, yy = Y + rnd() * 28; c.moveTo(xx, yy); c.lineTo(xx + 2, yy - 4); c.lineTo(xx + 4, yy); }
-        c.stroke();
+      if (t === T.WATER || t === T.GRASS || t === T.TREE) {
       } else if (t === T.ROAD || t === T.MAJOR) {
-        c.fillStyle = 'rgba(30,28,26,0.12)'; for (let k = 0; k < 6; k++) c.fillRect(X + rnd() * 31, Y + rnd() * 31, 1.5, 1.5);
         if (t === T.MAJOR) { // 车道虚线：沿主干道方向
           const mE = M.tile(x + 1, y) === T.MAJOR && M.tile(x - 1, y) === T.MAJOR, mS = M.tile(x, y + 1) === T.MAJOR && M.tile(x, y - 1) === T.MAJOR;
           const edgeN = M.tile(x, y - 1) !== T.MAJOR || M.tile(x, y - 2) !== T.MAJOR, edgeW = M.tile(x - 1, y) !== T.MAJOR || M.tile(x - 2, y) !== T.MAJOR;
@@ -332,7 +323,12 @@
         c.strokeStyle = '#4a3a2a'; c.lineWidth = 2; c.beginPath(); c.moveTo(X + 4, Y + 4); c.lineTo(X + 28, Y + 28); c.moveTo(X + 28, Y + 4); c.lineTo(X + 4, Y + 28); c.stroke();
       } else if (t === T.GROUND || t === T.PLAZA || t === T.ALLEY) {
         if (hv < 0.02) { c.fillStyle = 'rgba(80,60,40,0.18)'; SK.circle(c, X + 16, Y + 16, 6 + rnd() * 6, rnd, .6); c.fill(); }
-        if (hv > 0.985) { c.strokeStyle = 'rgba(60,50,40,0.5)'; c.lineWidth = 1; c.beginPath(); c.rect(X + 8 + rnd() * 8, Y + 8 + rnd() * 8, 6, 4); c.stroke(); }
+        // 墙根下的垃圾堆、大排档塑料凳
+        const nearWall = M.tile(x, y - 1) === T.BUILD;
+        if (nearWall && hv > 0.965) {
+          const im = A.img[hv > 0.985 ? 'p_stool' : 'p_trash'];
+          if (im) { const w = hv > 0.985 ? 30 : 34, h = im.height * w / im.width; c.fillStyle = 'rgba(30,22,15,0.25)'; c.beginPath(); c.ellipse(X + 16, Y + 26, w * 0.45, 5, 0, 0, 6.29); c.fill(); c.drawImage(im, X + 16 - w / 2, Y + 28 - h, w, h); }
+        }
       } else if (t === T.BUILD) {
         // 建筑东侧阴影
         if (M.tile(x + 1, y) !== T.BUILD) { c.fillStyle = 'rgba(40,30,20,0.16)'; c.fillRect(X + TS, Y, 10, TS); }
@@ -347,16 +343,11 @@
   }
 
   function drawTree(c, X, Y, rnd, night) {
-    c.fillStyle = '#6b4a2e'; c.fillRect(X + 14, Y + 6, 4, 18);
-    const r = 15 + rnd() * 6;
-    c.fillStyle = 'rgba(30,40,20,0.22)'; c.beginPath(); c.ellipse(X + 20, Y + 24, r * .9, r * .45, 0, 0, 6.29); c.fill();
-    const g = ['#6d9a48', '#5f8c3e', '#7aa652', '#4f7d38'][Math.floor(rnd() * 4)];
-    c.fillStyle = g; SK.circle(c, X + 16, Y - 6, r, rnd, .22, 12); c.fill();
-    c.strokeStyle = '#2f4a22'; c.lineWidth = 1.6; c.stroke();
-    c.fillStyle = 'rgba(255,255,220,0.18)'; SK.circle(c, X + 11, Y - 11, r * .5, rnd, .3, 9); c.fill();
-    c.strokeStyle = 'rgba(30,50,20,0.45)'; c.lineWidth = 1; c.beginPath();
-    for (let k = 0; k < 4; k++) { const a = rnd() * 6.28, d = rnd() * r * .7; const px = X + 16 + Math.cos(a) * d, py = Y - 6 + Math.sin(a) * d; c.moveTo(px, py); c.lineTo(px + 4, py + 2); }
-    c.stroke();
+    const im = G.A.img.tree;
+    const w = 54 + rnd() * 18, h = im.height * w / im.width;
+    c.fillStyle = 'rgba(30,40,20,0.25)'; c.beginPath(); c.ellipse(X + 18, Y + 26, w * 0.42, w * 0.17, 0, 0, 6.29); c.fill();
+    if (rnd() < 0.5) { c.save(); c.translate(X + 16, 0); c.scale(-1, 1); c.drawImage(im, -w / 2, Y + 28 - h, w, h); c.restore(); }
+    else c.drawImage(im, X + 16 - w / 2, Y + 28 - h, w, h);
   }
 
   function drawBuildChunk(cx, cy, night) {
@@ -376,10 +367,16 @@
         const sameN = M.bidAt(x, y - 1) === b, sameS = M.bidAt(x, y + 1) === b, sameW = M.bidAt(x - 1, y) === b, sameE = M.bidAt(x + 1, y) === b;
         if (!sameS) {
           // 南立面
-          const wall = U.shade(roof, 0.8);
-          c.fillStyle = wall; c.fillRect(X, Y + TS - h, TS, h);
-          const floors = Math.floor((h - 4) / 12);
-          const glass = B.k === 'mall' || B.k === 'office';
+          const glass = B.k === 'mall' || B.k === 'office' || B.k === 'bank';
+          const shopLike0 = ['shop', 'restaurant', 'convenience', 'pharmacy', 'hardware', 'market'].includes(B.k);
+          const top = Y + TS - h;
+          const fp = G.A.pattern(c, glass ? 'tex_facade_glass' : 'tex_facade_res', -x0 * TS, top, glass ? 0.62 : 0.6);
+          c.fillStyle = fp || U.shade(roof, 0.8); c.fillRect(X, top, TS, h);
+          c.fillStyle = U.shade(roof, 1); c.globalAlpha = glass ? 0.12 : 0.22; c.fillRect(X, top, TS, h); c.globalAlpha = 1;
+          if (shopLike0 && h > 24) { const sp = G.A.pattern(c, 'tex_facade_shop', -x0 * TS, Y + TS - 26, 0.6); if (sp) { c.fillStyle = sp; c.fillRect(X, Y + TS - 26, TS, 26); } }
+          const gr = c.createLinearGradient(0, top, 0, top + 10); gr.addColorStop(0, 'rgba(20,15,10,0.35)'); gr.addColorStop(1, 'rgba(20,15,10,0)'); c.fillStyle = gr; c.fillRect(X, top, TS, 10);
+          const floors = fp ? 0 : Math.floor((h - 4) / 12);
+          if (night) for (let f = 0; f < Math.floor((h - 4) / 12); f++) for (const wx of [X + 5, X + 19]) if (U.hash(x, y + f, wx) < 0.06) { c.fillStyle = '#f2d27a'; c.fillRect(wx, top + 6 + f * 12, 7, 6); }
           for (let f = 0; f < floors; f++) {
             const wy = Y + TS - h + 4 + f * 12;
             if (glass) { c.fillStyle = night ? 'rgba(30,40,50,0.8)' : 'rgba(80,110,130,0.55)'; c.fillRect(X + 1, wy, TS - 2, 8); continue; }
@@ -399,7 +396,7 @@
             }
           }
           const shopLike = ['shop', 'restaurant', 'convenience', 'pharmacy', 'hardware', 'market'].includes(B.k);
-          if (shopLike) { // 卷帘门
+          if (shopLike && !fp) { // 卷帘门
             c.fillStyle = '#8a8a86'; c.fillRect(X + 2, Y + TS - 12, TS - 4, 12);
             c.strokeStyle = 'rgba(40,40,40,0.5)'; c.beginPath(); for (let k = 0; k < 4; k++) { c.moveTo(X + 2, Y + TS - 11 + k * 3); c.lineTo(X + TS - 2, Y + TS - 11 + k * 3); } c.stroke();
           }
@@ -425,13 +422,12 @@
         }
         // 屋顶
         const RY = Y - h;
-        c.fillStyle = roof; c.fillRect(X, RY, TS + 0.5, TS + 0.5);
+        const rtex = (B.k === 'warehouse' || B.k === 'market' || B.k === 'parking') ? 'tex_roof_metal' : (B.k === 'village' || B.k === 'temple') && b % 3 !== 0 ? 'tex_roof_tile' : 'tex_roof_concrete';
+        const rp = G.A.pattern(c, rtex, -x0 * TS, BTOP - h - y0 * TS, rtex === 'tex_roof_concrete' ? 0.4 : 0.3);
+        c.fillStyle = rp || roof; c.fillRect(X, RY, TS + 0.5, TS + 0.5);
+        c.fillStyle = roof; c.globalAlpha = rtex === 'tex_roof_concrete' ? 0.35 : 0.18; c.fillRect(X, RY, TS + 0.5, TS + 0.5); c.globalAlpha = 1;
         { const wv = U.hash(x, y, 77); if (wv < 0.18) { c.fillStyle = wv < 0.09 ? 'rgba(255,250,235,0.06)' : 'rgba(50,35,20,0.04)'; c.beginPath(); c.arc(X + 16 + (wv - .25) * 30, RY + 16, 12 + wv * 16, 0, 6.29); c.save(); c.clip(); c.fillRect(X, RY, TS, TS); c.restore(); } }
-        if (B.k === 'warehouse' || B.k === 'market') { // 铁皮瓦楞
-          c.strokeStyle = 'rgba(60,60,60,0.25)'; c.lineWidth = 1; c.beginPath(); for (let k = 2; k < TS; k += 5) { c.moveTo(X + k, RY); c.lineTo(X + k, RY + TS); } c.stroke();
-        } else if (U.hash(b, 0, 9) < 0.5) {
-          c.strokeStyle = 'rgba(60,45,30,0.12)'; c.lineWidth = 1; SK.hatch(c, X, RY, TS, TS, rnd, 7, 0.8);
-        }
+
         // 女儿墙内线
         c.strokeStyle = 'rgba(255,250,235,0.45)'; c.lineWidth = 2; c.beginPath();
         if (!sameN) { c.moveTo(X, RY + 3); c.lineTo(X + TS, RY + 3); }
