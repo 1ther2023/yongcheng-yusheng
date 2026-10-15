@@ -111,7 +111,8 @@
     R.zoomOff();
   }
 
-  window.addEventListener('load', () => {
+  window.addEventListener('load', async () => {
+    await G.A.ready;
     G.M.init(); G.M.makeMiniBase(); G.R.init();
     G.UI.title();
     requestAnimationFrame(frame);
